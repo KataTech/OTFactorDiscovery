@@ -1,0 +1,8 @@
+# Ignore Mac system files
+.DS_store
+
+# Ignore Python Caches
+**__pycache__
+
+# Ignore the data folder
+kai/data
