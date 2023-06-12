@@ -9,3 +9,6 @@ kai/data
 
 # Ignore the outputs folder 
 kai/outputs
+
+# Ignore the archived folder 
+kai/archived
