@@ -6,3 +6,6 @@
 
 # Ignore the data folder
 kai/data
+
+# Ignore the outputs folder 
+kai/outputs
