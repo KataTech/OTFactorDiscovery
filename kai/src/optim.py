@@ -150,3 +150,59 @@ def vis_gradient(y_list, y_axis_title = "Gradient Norm", x_axis_title = "Iterati
     plt.xlabel(x_axis_title)
     plt.ylabel(y_axis_title)
     plt.show()
+
+def run_trials(TRIALS, f, grad_f, hess_f): 
+    """
+    Run multiple trials of ITGD to find the optimal point of a function.
+
+    Inputs:
+        - TRIALS: the number of trials to run
+        - f: the function to optimize
+        - grad_f: the gradient of the function
+        - hess_f: the hessian of the function
+    """
+    np.random.seed(0)
+    TRIALS = 100
+    x_init = np.random.randint(0, 1, TRIALS)
+    y_init = np.random.randint(0, 1, TRIALS)
+    x_opts = []
+    y_opts = []
+
+    for trial in range(TRIALS):
+        x_optim, y_optim, _, _, _ = itgw(f, grad_f, hess_f, x_init[trial], y_init[trial], 0.01, epsilon=0.0001, max_iter = 1000) 
+        x_opts.append(x_optim)
+        y_opts.append(y_optim)
+    return x_opts, y_opts
+
+def visualize_optimal_points(x_values, y_values, lr = 0.01):
+    """
+    Visualize the distribution of optimal points found by ITGD over multiple trials.
+    Inputs: 
+        x_values: list of x values of optimal points
+        y_values: list of y values of optimal points
+    """
+    grid_size = 2  # Size of the grid
+    resolution = 100  # Resolution of the heatmap (higher values give smoother results)
+    
+    # Create a grid
+    grid = np.zeros((resolution, resolution))
+    x_grid = np.linspace(0, grid_size, resolution)
+    y_grid = np.linspace(0, grid_size, resolution)
+    X, Y = np.meshgrid(x_grid, y_grid)
+    
+    # Compute the density of optimal points on the grid
+    for x, y in zip(x_values, y_values):
+        # Find the nearest grid cell
+        x_index = np.argmin(np.abs(x_grid - x))
+        y_index = np.argmin(np.abs(y_grid - y))
+        
+        # Increment the density at that grid cell
+        grid[y_index, x_index] += 1
+    
+    # Plot the heatmap
+    plt.imshow(grid, cmap='hot', origin='lower', extent=[0, grid_size, 0, grid_size])
+    plt.colorbar(label='Optimal Points Density')
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.title(f'Optimal Points Heatmap ($\epsilon = 0.0001, \eta = {lr}$)')
+    plt.show()
