@@ -16,7 +16,7 @@ class KMeans:
         """
         This function uses utils.py to update centroids.
         """
-        if cost_metric not in ['squared_euclidean', 'manhattan', 'euclidean'] and not is_Lp(cost_metric):
+        if cost_metric not in ['squared_euclidean', 'manhattan', 'euclidean'] and not is_Lp(cost_metric): # is_Lp() is defined in utils.py
             print('Invalid cost metric. Defaulting to "squared_euclidean".')
             cost_metric = 'squared_euclidean'
         # Initialize centroids randomly

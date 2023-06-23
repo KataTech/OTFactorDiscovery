@@ -46,13 +46,19 @@ def weiszfeld(X, epsilon=1e-6, max_iterations=100):
         # Calculate the distances from the current geometric median to all points
         distances = np.linalg.norm(X - geometric_median, axis=1)
 
-        # Check if the algorithm has converged
-        if np.max(distances) < epsilon:
-            break
+        # # Check if the algorithm has converged
+        # if np.max(distances) < epsilon:
+        #     break
 
         # Update the geometric median
         weights = 1 / distances
         weights /= np.sum(weights)  # Normalize the weights
-        geometric_median = np.dot(weights, X)
+        new_geometric_median = np.dot(weights, X)
+
+        # Check if the algorithm has converged
+        if np.linalg.norm(new_geometric_median - geometric_median) < epsilon:
+            break
+        else:
+            geometric_median = new_geometric_median
 
     return geometric_median
