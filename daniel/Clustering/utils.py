@@ -1,3 +1,7 @@
+"""
+Author: Daniel Wang
+Date: 2023-06-23
+"""
 import numpy as np
 import re
 
@@ -29,6 +33,10 @@ def update_centroids(X, labels, n_clusters, cost_metric):
     return centroids
 
 def weiszfeld(X, epsilon=1e-6, max_iterations=100):
+    """
+    This function implements the Weiszfeld algorithm for computing the geometric median, as described here:
+    https://en.wikipedia.org/wiki/Geometric_median#Computation (link is correct as of 2023-06-23)
+    """
     num_points, _ = X.shape
 
     # Initialize the geometric median as the mean of the points
