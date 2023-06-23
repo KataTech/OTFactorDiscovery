@@ -1,0 +1,50 @@
+import numpy as np
+import re
+
+def is_Lp(cost_metric):
+    pattern = r'^L\d+$'
+    return re.match(pattern, cost_metric) is not None
+
+def update_centroids(X, labels, n_clusters, cost_metric):
+    centroids = np.zeros((n_clusters, X.shape[1]))
+
+    if cost_metric == 'squared_euclidean':
+        for k in range(n_clusters):
+            centroids[k] = np.mean(X[labels == k], axis=0)
+    elif cost_metric == 'manhattan':
+        for k in range(n_clusters):
+            centroids[k] = np.median(X[labels == k], axis=0)
+    elif cost_metric == 'euclidean':
+        for k in range(n_clusters):
+            centroids[k] = weiszfeld(X[labels == k])
+
+    elif is_Lp(cost_metric) and int(cost_metric[1:])!= 2:
+        p = int(cost_metric[1:])
+        for k in range(n_clusters):
+            pass
+    else:
+        for k in range(n_clusters):
+            centroids[k] = np.mean(X[labels == k], axis=0)
+
+    return centroids
+
+def weiszfeld(X, epsilon=1e-6, max_iterations=100):
+    num_points, _ = X.shape
+
+    # Initialize the geometric median as the mean of the points
+    geometric_median = np.mean(X, axis=0)
+
+    for iteration in range(max_iterations):
+        # Calculate the distances from the current geometric median to all points
+        distances = np.linalg.norm(X - geometric_median, axis=1)
+
+        # Check if the algorithm has converged
+        if np.max(distances) < epsilon:
+            break
+
+        # Update the geometric median
+        weights = 1 / distances
+        weights /= np.sum(weights)  # Normalize the weights
+        geometric_median = np.dot(weights, X)
+
+    return geometric_median
