@@ -12,7 +12,12 @@ def is_Lp(cost_metric):
     pattern = r'^L\d+$'
     return re.match(pattern, cost_metric) is not None
 
-def update_centroids(X, labels, n_clusters, cost_metric, tolerance=1e-6, max_iterations=100, **kwargs):
+def update_centroids(X, labels, n_clusters, cost_metric, tolerance=None, max_steps=None, **kwargs):
+    if tolerance is None:
+        raise ValueError('No value for the argument "tolerance" was received.')
+    if max_steps is None:
+        raise ValueError('No value for the argument "max_steps" was received.')
+    
     centroids = np.zeros((n_clusters, X.shape[1]))
 
     if cost_metric == 'squared_euclidean':
@@ -23,7 +28,7 @@ def update_centroids(X, labels, n_clusters, cost_metric, tolerance=1e-6, max_ite
             centroids[k] = np.median(X[labels == k], axis=0)
     elif cost_metric == 'euclidean':
         for k in range(n_clusters):
-            centroids[k] = weiszfeld(X[labels == k], tolerance, max_iterations)
+            centroids[k] = weiszfeld(X[labels == k], tolerance, max_steps)
 
     elif is_Lp(cost_metric) and int(cost_metric[1:])!= 2:
         p = int(cost_metric[1:])
