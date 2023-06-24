@@ -6,28 +6,51 @@ import numpy as np
 from utils import *
 
 class KMeans:
-    def __init__(self, n_clusters=8, max_iter=300):
+    """
+    This class must be initialized with user-defined values of n_clusters and max_iterations.
+    Otherwise, the default values (8 and 300, respectively) will be used.
+    """
+    def __init__(self, n_clusters=8, max_iterations=300):
         self.n_clusters = n_clusters
-        self.max_iter = max_iter
+        self.max_iterations = max_iterations
         self.centroids = None
         self.labels = None
     
-    def fit(self, X, cost_metric='squared_euclidean'):
+    def fit(self, X, cost_metric='squared_euclidean', **kwargs):
         """
-        This function uses utils.py to update centroids.
+        This function implements the k-means algorithm.
+
+        The function iteratively updates the centroids and the labels of the data points until convergence.
+
+        :param X: NumPy array of shape (n_samples, n_features)
+        :param cost_metric: String. One of 'squared_euclidean', 'manhattan', 'euclidean', or 'Lp', where p is a positive integer.
+        :param kwargs: Keyword arguments for the function update_centroids(). See utils.py for details.
         """
-        if cost_metric not in ['squared_euclidean', 'manhattan', 'euclidean'] and not is_Lp(cost_metric): # is_Lp() is defined in utils.py
-            print('Invalid cost metric. Defaulting to "squared_euclidean".')
+        # Check if the user has specified the keyword arguments "tolerance" and "max_steps"
+        user_chosen = False
+        if cost_metric == 'squared_euclidean':
+            pass
+        elif cost_metric in ['manhattan', 'euclidean'] or is_Lp(cost_metric):
+            if 'tolerance' not in kwargs or 'max_steps' not in kwargs:
+                print('Warning: For cost metrics other than "squared_euclidean", the centroids are computed using an iterative algorithm.'
+                      ' Please specify the keyword arguments "tolerance" and "max_steps" when calling KMeans.fit(). Otherwise, the default values from utils.py'
+                      ' (1e-6 and 100, respectively) will be used.')
+            else:
+                print('For cost metrics other than "squared_euclidean", the centroids are computed using an iterative algorithm. This may take a while.')
+                user_chosen = True
+        else:
+            print('Warning: Invalid cost metric. Defaulting to "squared_euclidean".')
             cost_metric = 'squared_euclidean'
+
         # Initialize centroids randomly
         self.centroids = X[np.random.choice(X.shape[0], size=self.n_clusters, replace=False)]
         
-        for _ in range(self.max_iter):
+        for _ in range(self.max_iterations):
             # Assign labels to each data point
             self.labels = self._assign_labels(X)
             
             # Update centroids based on the mean of each cluster
-            new_centroids = update_centroids(X, self.labels, self.n_clusters, cost_metric)
+            new_centroids = update_centroids(X, self.labels, self.n_clusters, cost_metric, **kwargs)
             
             # Check for convergence
             if np.allclose(self.centroids, new_centroids):
