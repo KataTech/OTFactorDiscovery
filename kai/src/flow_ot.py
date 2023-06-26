@@ -19,22 +19,29 @@ def gaussian_kernel(X, sigma=1.0):
     return K_x
 
 
-
-def gaussian_kernel_grad(y, l, gauss_kernel, sigma=1.0): 
+def gaussian_kernel_grad(y, i, l, gauss_kernel, sigma=1.0, verbose=0, second_kernel = None): 
     """
-    Returns the gradient of the kernel matrix at entry (y, l) with respect the index of y. 
+    Returns the gradient of the kernel matrix at entry (i, l) with respect the index of y. 
     """
-    return -gauss_kernel[y, l] * (y - l) / sigma**2
+    if second_kernel is None: 
+        result = np.multiply(-gauss_kernel[i, l].reshape((y.shape[0], 1)), y[i] - y[l]) / sigma**2
+    else: 
+        result = np.multiply(-(gauss_kernel[i, l] * second_kernel[i, l]).reshape((y.shape[0], 1)), y[i] - y[l]) / sigma**2
+    if verbose > 2: 
+        print("Shape of gradient = {}".format(result.shape))
+    return result
 
-def gaussian_kernel_kl_grad(x, y, lam, k_y, k_z): 
+def gaussian_kernel_kl_grad(x, y, lam, k_y, k_z, verbose = 0): 
     """
     Computes the gradient of the loss function with respect to y. 
     """
     # compute the gradient of the kernel matrix
     grad = np.zeros_like(y)
     for i in range(y.shape[0]): 
-        grad[i] = np.sum(gaussian_kernel_grad(i, np.arange(y.shape[0]), k_y) * k_z[i, :], axis=0) / np.sum(k_z[i, :] * k_y[i, :])
-        grad[i] -= np.sum(gaussian_kernel_grad(i, np.arange(y.shape[0]), k_y), axis=0) / np.sum(k_y[i, :])
+        if verbose > 2:
+            print("Iteration {}".format(i))
+        grad[i] = np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose=verbose, second_kernel = k_z), axis=0) / np.sum(k_z[i, :] * k_y[i, :])
+        grad[i] -= np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose=verbose), axis=0) / np.sum(k_y[i, :])
         # print("Dimension of Gradient: {}".format(grad[i].shape))
         # print("Dimension of y {}".format(y.shape))
         # print("Dimension of x {}".format(x.shape))
@@ -42,7 +49,8 @@ def gaussian_kernel_kl_grad(x, y, lam, k_y, k_z):
         grad[i] = y[i] - x[i] + lam * grad[i]
     return grad
 
-def compute_barycenter(x, z, y_init, lam, barycenter_cost_grad, kern_y=gaussian_kernel, kern_z=gaussian_kernel, epsilon=0.001, lr=0.01, max_iter=1000, verbose=0): 
+def compute_barycenter(x, z, y_init, lam, barycenter_cost_grad, kern_y=gaussian_kernel, kern_z=gaussian_kernel, 
+                       epsilon=0.001, lr=0.01, max_iter=1000, verbose=0, adaptive_lr=False): 
     """
     Computes the barycenter with a flow-based approach. In other words, 
     we run gradient descent on y_i with respect to the barycenter objective
@@ -69,20 +77,27 @@ def compute_barycenter(x, z, y_init, lam, barycenter_cost_grad, kern_y=gaussian_
     iter = 0
     # pre-compute the kernel matrix for Z since that remains constant
     k_z = kern_z(z)
+    old_grad_norm = float('inf')
     # iterate until maximum iteration or convergence
     while iter < max_iter: 
         # update the iteration count 
         iter += 1
         k_y = kern_y(y)
         # compute the gradient vector of this iteration
-        grad = barycenter_cost_grad(x, y, lam, k_y, k_z)
+        grad = barycenter_cost_grad(x, y, lam, k_y, k_z, verbose=verbose)
         # run a gradient descent step
         y = y - lr * grad
         # check for convergence
         if np.linalg.norm(grad) < epsilon:
             break
+        # adaptive update of the learning rate
+        if adaptive_lr and lr < 1 and lr > 0.0001: 
+            lr = lr * 1.01 if (np.linalg.norm(grad) < old_grad_norm) else lr * 0.5
+        old_grad_norm = np.linalg.norm(grad)
+        # print the gradient norm every 100 iterations
         if verbose >= 1 and iter % 100 == 0:
             print("Iteration {}: gradient norm = {}".format(iter, np.linalg.norm(grad)))
+    # print the final gradient norm and number of iterations
     if verbose >= 2 :
         print("Final gradient norm = {}".format(np.linalg.norm(grad)))
         print("Number of iterations = {}".format(iter))
