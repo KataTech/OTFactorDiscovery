@@ -12,11 +12,24 @@ def is_Lp(cost_metric):
     pattern = r'^L\d+$'
     return re.match(pattern, cost_metric) is not None
 
-def update_centroids(X, labels, n_clusters, cost_metric, tolerance=None, max_steps=None, **kwargs):
+def is_euclidean_power(cost_metric):
+
+    """
+    This function checks if the argument "cost_metric" has the format "euclidean^n", where n is a positive integer.
+    """
+    pattern = r'^euclidean\^\d+$'
+    return re.match(pattern, cost_metric) is not None
+
+
+def update_centroids(X, labels, n_clusters, cost_metric=None, tolerance=None, max_steps=None, learning_rate=None, **kwargs):
+    if cost_metric is None:
+        raise ValueError('No value for the argument "cost_metric" was received.')
     if tolerance is None:
         raise ValueError('No value for the argument "tolerance" was received.')
     if max_steps is None:
         raise ValueError('No value for the argument "max_steps" was received.')
+    if learning_rate is None:
+        raise ValueError('No value for the argument "learning_rate" was received.')
     
     centroids = np.zeros((n_clusters, X.shape[1]))
 
@@ -29,16 +42,37 @@ def update_centroids(X, labels, n_clusters, cost_metric, tolerance=None, max_ste
     elif cost_metric == 'euclidean':
         for k in range(n_clusters):
             centroids[k] = weiszfeld(X[labels == k], tolerance, max_steps)
-
-    elif is_Lp(cost_metric) and int(cost_metric[1:])!= 2:
+    elif is_Lp(cost_metric):
         p = int(cost_metric[1:])
+        for k in range(n_clusters):   
+            grad = np.zeros(X.shape[1])
+            for x in X[labels == k]:
+                grad += np.sum(np.abs(x - centroids[k])**p)**(1/p - 1) * np.abs(x - centroids[k])**(p - 1) * np.sign(x - centroids[k]) * (-1)
+            centroids[k] -= grad
+    elif is_euclidean_power(cost_metric):
+        n = int(cost_metric[10:])
         for k in range(n_clusters):
             pass
-    else:
-        for k in range(n_clusters):
-            centroids[k] = np.mean(X[labels == k], axis=0)
 
     return centroids
+
+def calculate_distances(X, cost_metric=None, centroids=None, **kwargs):
+    if cost_metric is None:
+        raise ValueError('No value for the argument "cost_metric" was received.')
+    if centroids is None:
+        raise ValueError('No value for the argument "centroids" was received.')
+    
+    if cost_metric in ['euclidean', 'squared_euclidean']:
+        distances = np.linalg.norm(X[:, np.newaxis] - centroids, axis=-1)
+    elif cost_metric == 'manhattan':
+        distances = np.linalg.norm(X[:, np.newaxis] - centroids, ord=1, axis=-1)
+    elif is_Lp(cost_metric):
+        pass
+    elif is_euclidean_power(cost_metric):
+        pass
+
+    return distances
+
 
 def weiszfeld(X, tolerance, max_iterations):
     """
