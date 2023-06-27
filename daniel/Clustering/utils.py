@@ -9,11 +9,10 @@ def is_Lp(cost_metric):
     """
     This function checks if the argument "cost_metric" has the format "Lp", where p is a positive integer.
     """
-    pattern = r'^L\d+$'
+    pattern = r'^L([1-9]\d*)$'
     return re.match(pattern, cost_metric) is not None
 
 def is_euclidean_power(cost_metric):
-
     """
     This function checks if the argument "cost_metric" has the format "euclidean^n", where n is a positive integer.
     """
@@ -21,7 +20,7 @@ def is_euclidean_power(cost_metric):
     return re.match(pattern, cost_metric) is not None
 
 
-def update_centroids(X, labels, n_clusters, cost_metric=None, tolerance=None, max_steps=None, learning_rate=None, **kwargs):
+def update_centroids(X, labels, n_clusters, centroids, cost_metric=None, tolerance=None, max_steps=None, learning_rate=None, **kwargs):
     if cost_metric is None:
         raise ValueError('No value for the argument "cost_metric" was received.')
     if tolerance is None:
@@ -31,7 +30,8 @@ def update_centroids(X, labels, n_clusters, cost_metric=None, tolerance=None, ma
     if learning_rate is None:
         raise ValueError('No value for the argument "learning_rate" was received.')
     
-    centroids = np.zeros((n_clusters, X.shape[1]))
+    # centroids = np.zeros((n_clusters, X.shape[1]))
+    centroids = np.copy(centroids)
 
     if cost_metric == 'squared_euclidean':
         for k in range(n_clusters):
@@ -46,13 +46,27 @@ def update_centroids(X, labels, n_clusters, cost_metric=None, tolerance=None, ma
         p = int(cost_metric[1:])
         for k in range(n_clusters):   
             grad = np.zeros(X.shape[1])
+            num_points = np.sum(labels == k)  # Number of points in cluster k
             for x in X[labels == k]:
-                grad += np.sum(np.abs(x - centroids[k])**p)**(1/p - 1) * np.abs(x - centroids[k])**(p - 1) * np.sign(x - centroids[k]) * (-1)
-            centroids[k] -= grad
+                distance = np.abs(centroids[k] - x)
+                non_zero_indices = distance != 0
+                if np.any(non_zero_indices):  # Check if there are non-zero indices
+                    grad += np.sum(distance[non_zero_indices]**p, axis=-1)**(1/p - 1) * distance[non_zero_indices]**(p - 1) * np.sign(centroids[k] - x)[non_zero_indices]
+            grad[np.isnan(grad)] = 0  # Replace NaN values with zero
+            centroids[k] -= learning_rate * grad / num_points
     elif is_euclidean_power(cost_metric):
+        p = 2 # this exponent can be customized by end-users for non-euclidean distances
         n = int(cost_metric[10:])
         for k in range(n_clusters):
-            pass
+            grad = np.zeros(X.shape[1])
+            num_points = np.sum(labels == k)  # Number of points in cluster k
+            for x in X[labels == k]:
+                distance = np.abs(centroids[k] - x)
+                non_zero_indices = distance != 0
+                if np.any(non_zero_indices):  # Check if there are non-zero indices
+                    grad += n * np.sum(distance[non_zero_indices]**p, axis=-1)**(2/p - 1) * distance[non_zero_indices]**(p - 1) * np.sign(centroids[k] - x)[non_zero_indices]
+            grad[np.isnan(grad)] = 0  # Replace NaN values with zero
+            centroids[k] -= learning_rate * grad / num_points
 
     return centroids
 
@@ -63,14 +77,15 @@ def calculate_distances(X, cost_metric=None, centroids=None, **kwargs):
         raise ValueError('No value for the argument "centroids" was received.')
     
     if cost_metric in ['euclidean', 'squared_euclidean']:
-        distances = np.linalg.norm(X[:, np.newaxis] - centroids, axis=-1)
+        distances = np.linalg.norm(X[:, np.newaxis] - centroids, axis=-1) # missing the squared case, but not necessary since x^2 is monotonic
     elif cost_metric == 'manhattan':
         distances = np.linalg.norm(X[:, np.newaxis] - centroids, ord=1, axis=-1)
     elif is_Lp(cost_metric):
-        pass
+        p = int(cost_metric[1:])
+        distances = np.linalg.norm(X[:, np.newaxis] - centroids, ord=p, axis=-1)
     elif is_euclidean_power(cost_metric):
-        pass
-
+        p = 2 # this exponent can be customized by end-users for non-euclidean distances
+        distances = np.linalg.norm(X[:, np.newaxis] - centroids, ord=p, axis=-1) # missing the n-th power, but not necessary since x^n is monotonic
     return distances
 
 
