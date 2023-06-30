@@ -102,3 +102,28 @@ def compute_barycenter(x, z, y_init, lam, barycenter_cost_grad, kern_y=gaussian_
         print("Final gradient norm = {}".format(np.linalg.norm(grad)))
         print("Number of iterations = {}".format(iter))
     return y
+
+def compute_L(X, Y, Z, lam, kern_y=gaussian_kernel, kern_z=gaussian_kernel): 
+    """
+    Computes the loss function of the barycenter problem.
+
+    Inputs: 
+        - X: the observed data points. N-by-d numpy array where N is the number
+            of samples and d is the dimension of each x_i vector.
+        - Y: the barycenter points. N-by-d numpy array.
+        - Z: the hidden factors. N-by-k numpy array where k is the dimension of
+            each z_i vector.
+        - lam: the regularization parameter for controlling the independence
+            between y and z.
+        - kern_y: the kernel to use for estimating the distribution of y
+        - kern_z: the kernel to use for estimating the distribution of z 
+    """
+    # compute the kernel matrices
+    k_y = kern_y(Y)
+    k_z = kern_z(Z)
+    # compute the loss function
+    loss = 0
+    for i in range(X.shape[0]): 
+        loss += np.linalg.norm(Y[i, :] - X[i, :])**2 / 2
+        loss += lam * np.log(np.sum(k_y[i, :] * k_z[i, :]) / (np.sum(k_y[i, :]) * np.sum(k_z[i, :])))
+    return loss
