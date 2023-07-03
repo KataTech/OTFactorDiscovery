@@ -14,6 +14,7 @@ def gaussian_kernel(X, sigma=1.0):
     """
     # Compute the squared Euclidean distance matrix
     distances = np.sum(X**2, axis=1, keepdims=True) - 2 * X @ X.T + np.sum(X.T**2, axis=0, keepdims=True)
+    # print("distances: {}".format(distances))
     # Compute the kernel matrix using the Gaussian kernel
     K_x = np.exp(-distances / (2 * sigma**2))
     return K_x
@@ -24,9 +25,11 @@ def gaussian_kernel_grad(y, i, l, gauss_kernel, sigma=1.0, verbose=0, second_ker
     Returns the gradient of the kernel matrix at entry (i, l) with respect the index of y. 
     """
     if second_kernel is None: 
-        result = np.multiply(-gauss_kernel[i, l].reshape((y.shape[0], 1)), y[i] - y[l]) / sigma**2
+        result = np.multiply(-gauss_kernel[i, l].reshape((y.shape[0], 1)), y[i, :] - y[l, :]) / sigma**2
+        if verbose > 0: print(f"Gaussian Kernel Grad (i = {i}, l = {l}); Use Case 1: \n{result}")
     else: 
-        result = np.multiply(-(gauss_kernel[i, l] * second_kernel[i, l]).reshape((y.shape[0], 1)), y[i] - y[l]) / sigma**2
+        result = np.multiply(-(gauss_kernel[i, l] * second_kernel[i, l]).reshape((y.shape[0], 1)), y[i, :] - y[l, :]) / sigma**2
+        if verbose > 0: print(f"Gaussian Kernel Grad (i = {i}, l = {l}); Use Case 2: \n{result}")
     if verbose > 2: 
         print("Shape of gradient = {}".format(result.shape))
     return result
@@ -40,8 +43,14 @@ def gaussian_kernel_kl_grad(x, y, lam, k_y, k_z, verbose = 0):
     for i in range(y.shape[0]): 
         if verbose > 2:
             print("Iteration {}".format(i))
-        grad[i] = np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose=verbose, second_kernel = k_z), axis=0) / np.sum(k_z[i, :] * k_y[i, :])
-        grad[i] -= np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose=verbose), axis=0) / np.sum(k_y[i, :])
+        grad[i] = np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose = verbose, second_kernel = k_z), axis=0) / np.sum(k_z[i, :] * k_y[i, :])
+        if i == 0 and verbose > 0:     
+            print(f"Numerator Sum: \n{np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose=verbose, second_kernel = k_z), axis=0)} \nwith dimensions {np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose=verbose, second_kernel = k_z), axis=0).shape}")
+            print("Gradient after update one: \n{}\n".format(grad[i]))
+        grad[i] -= np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose = verbose), axis=0) / np.sum(k_y[i, :])
+        if i == 0 and verbose > 0: 
+            print(f"Numerator Sum 2: \n{np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose=verbose), axis=0)} \nwith shape {np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose=verbose), axis=0).shape}")
+            print("Gradient after update two: \n{}".format(grad[i]))
         # print("Dimension of Gradient: {}".format(grad[i].shape))
         # print("Dimension of y {}".format(y.shape))
         # print("Dimension of x {}".format(x.shape))
@@ -72,6 +81,8 @@ def compute_barycenter(x, z, y_init, lam, barycenter_cost_grad, kern_y=gaussian_
         - epsilon: the convergence threshold.
         - lr: the learning rate for gradient descent.
         - max_iter: the maximum number of iterations to run.
+        - verbose: the verbosity level for debugging 
+        - adaptive_lr: whether to use adaptive learning rate or not.
     """
     y = y_init
     iter = 0
