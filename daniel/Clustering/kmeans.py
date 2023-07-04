@@ -17,9 +17,9 @@ class KMeans:
         self.labels = None
         self.tolerance = None
         self.max_steps = None
-        self.learning_rate = None
+        self.descent_rate = None
     
-    def fit(self, X, cost_metric='squared_euclidean', tolerance=1e-6, max_steps=100, learning_rate=0.01, random_state=None, **kwargs):
+    def fit(self, X, cost_metric='squared_euclidean', tolerance=1e-6, max_steps=150, descent_rate=0.05, random_state=None, **kwargs):
         """
         This function implements the k-means algorithm.
 
@@ -34,24 +34,25 @@ class KMeans:
 
         self.tolerance = tolerance
         self.max_steps = max_steps
-        self.learning_rate = learning_rate
+        self.descent_rate = descent_rate
 
         if random_state is not None:
             np.random.seed(random_state)
 
+        print('\n' + 'Using cost metric: ' + cost_metric)
         if cost_metric not in ['squared_euclidean', 'manhattan']:
-            print('For cost metrics other than "squared_euclidean and manhattan", the centroids are computed using an iterative algorithm. \n'
-                    'This may take a while. \n')
+            print(#'For cost metrics other than "squared_euclidean and manhattan", the centroids are computed using an iterative algorithm. \n'
+                    'This iterative algorithm may take a while.')
             
-            if tolerance == 1e-6 and max_steps == 100:
-                print('Notice: For cost metrics other than "squared_euclidean" and "manhattan", the centroids are computed using an iterative algorithm. \n'
-                        'You have the option of defining the keyword arguments "tolerance" and "max_steps" when calling KMeans.fit(). \n'
-                        'If you omit these, the default values (1e-6 and 100, respectively) from utils.py will be used. \n')
+            if tolerance == 1e-6 and max_steps == 150:
+                print('You have the option of defining the keyword arguments "tolerance" and "max_steps" when calling KMeans.fit(). \n'
+                        'If you omit these, the default values (1e-6 and 150, respectively) from utils.py will be used for the iterative algorithm.')
                     
-            if utils.is_Lp(cost_metric) or utils.is_euclidean_power(cost_metric) and learning_rate == 0.01:
-                print('Notice: For the cost metrics "Lp" and "euclidean^n", the centroids are computed using gradient descent. \n'
-                      'You have the option of defining the keyword argument "learning_rate". \n'
-                      'If you omit this, the default value (0.01) from utils.py will be used.')
+            if utils.is_Lp(cost_metric) or utils.is_euclidean_power(cost_metric):
+                if descent_rate == 0.05:
+                    print('Notice: For cost metrics of the form "Lp" and "euclidean^n", centroids are computed using gradient descent. \n'
+                        'You have the option of defining the keyword argument "descent_rate". \n'
+                        'If you omit this, the default value (0.05) from utils.py will be used.')
             elif cost_metric != 'euclidean':
                 raise ValueError('Invalid cost metric. Please see the documentation for valid choices.')
 
@@ -63,7 +64,7 @@ class KMeans:
             self.labels = self._assign_labels(X, cost_metric=cost_metric, **kwargs)
             # Update centroids based on the mean of each cluster
             new_centroids = utils.update_centroids(X, self.labels, self.n_clusters, self.centroids, cost_metric, 
-                                                   tolerance=self.tolerance, max_steps=self.max_steps, learning_rate=self.learning_rate, **kwargs)
+                                                   tolerance=self.tolerance, max_steps=self.max_steps, descent_rate=self.descent_rate, **kwargs)
             # Check for convergence
             if np.allclose(self.centroids, new_centroids):
                 break
@@ -73,8 +74,8 @@ class KMeans:
         # Convert centroids to NumPy array
         self.centroids = np.array(self.centroids)
     
-    def predict(self, X):
-        return self._assign_labels(X)
+    def predict(self, X, cost_metric=None, **kwargs):
+        return self._assign_labels(X, cost_metric=cost_metric, **kwargs)
     
     def _assign_labels(self, X, cost_metric=None, **kwargs):
         distances = utils.calculate_distances(X, cost_metric=cost_metric, centroids=self.centroids, **kwargs)

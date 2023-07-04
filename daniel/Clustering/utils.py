@@ -20,17 +20,16 @@ def is_euclidean_power(cost_metric):
     return re.match(pattern, cost_metric) is not None
 
 
-def update_centroids(X, labels, n_clusters, centroids, cost_metric=None, tolerance=None, max_steps=None, learning_rate=None, **kwargs):
+def update_centroids(X, labels, n_clusters, centroids, cost_metric=None, tolerance=None, max_steps=None, descent_rate=None, **kwargs):
     if cost_metric is None:
         raise ValueError('No value for the argument "cost_metric" was received.')
     if tolerance is None:
         raise ValueError('No value for the argument "tolerance" was received.')
     if max_steps is None:
         raise ValueError('No value for the argument "max_steps" was received.')
-    if learning_rate is None:
-        raise ValueError('No value for the argument "learning_rate" was received.')
+    if descent_rate is None:
+        raise ValueError('No value for the argument "descent_rate" was received.')
     
-    # centroids = np.zeros((n_clusters, X.shape[1]))
     centroids = np.copy(centroids)
 
     if cost_metric == 'squared_euclidean':
@@ -53,7 +52,7 @@ def update_centroids(X, labels, n_clusters, centroids, cost_metric=None, toleran
                 if np.any(non_zero_indices):  # Check if there are non-zero indices
                     grad += np.sum(distance[non_zero_indices]**p, axis=-1)**(1/p - 1) * distance[non_zero_indices]**(p - 1) * np.sign(centroids[k] - x)[non_zero_indices]
             grad[np.isnan(grad)] = 0  # Replace NaN values with zero
-            centroids[k] -= learning_rate * grad / num_points
+            centroids[k] -= descent_rate * grad / num_points
     elif is_euclidean_power(cost_metric):
         p = 2 # this exponent can be customized by end-users for non-euclidean distances
         n = int(cost_metric[10:])
@@ -66,7 +65,7 @@ def update_centroids(X, labels, n_clusters, centroids, cost_metric=None, toleran
                 if np.any(non_zero_indices):  # Check if there are non-zero indices
                     grad += n * np.sum(distance[non_zero_indices]**p, axis=-1)**(2/p - 1) * distance[non_zero_indices]**(p - 1) * np.sign(centroids[k] - x)[non_zero_indices]
             grad[np.isnan(grad)] = 0  # Replace NaN values with zero
-            centroids[k] -= learning_rate * grad / num_points
+            centroids[k] -= descent_rate * grad / num_points
 
     return centroids
 
@@ -89,7 +88,7 @@ def calculate_distances(X, cost_metric=None, centroids=None, **kwargs):
     return distances
 
 
-def weiszfeld(X, tolerance, max_iterations):
+def weiszfeld(X, tolerance, max_steps):
     """
     This function implements the Weiszfeld algorithm for computing the geometric median, as described here:
     https://en.wikipedia.org/wiki/Geometric_median#Computation (link is correct as of 2023-06-23)
@@ -99,7 +98,7 @@ def weiszfeld(X, tolerance, max_iterations):
     # Initialize the geometric median as the mean of the points
     geometric_median = np.mean(X, axis=0)
 
-    for iteration in range(max_iterations):
+    for iteration in range(max_steps):
         # Calculate the distances from the current geometric median to all points
         distances = np.linalg.norm(X - geometric_median, axis=1)
 
