@@ -20,7 +20,7 @@ def is_euclidean_power(cost_metric):
     return re.match(pattern, cost_metric) is not None
 
 
-def update_centroids(X, labels, n_clusters, centroids, cost_metric=None, tolerance=None, max_steps=None, descent_rate=None, **kwargs):
+def update_centroids(X, labels, n_clusters, centroids, cost_metric=None, tolerance=None, max_steps=None, descent_rate=None):
     if cost_metric is None:
         raise ValueError('No value for the argument "cost_metric" was received.')
     if tolerance is None:
@@ -31,16 +31,21 @@ def update_centroids(X, labels, n_clusters, centroids, cost_metric=None, toleran
         raise ValueError('No value for the argument "descent_rate" was received.')
     
     centroids = np.copy(centroids)
-
     if cost_metric == 'squared_euclidean':
         for k in range(n_clusters):
-            centroids[k] = np.mean(X[labels == k], axis=0)
+            cluster_points = X[labels == k]
+            if len(cluster_points) > 0:
+                centroids[k] = np.mean(cluster_points, axis=0)
     elif cost_metric == 'manhattan':
         for k in range(n_clusters):
-            centroids[k] = np.median(X[labels == k], axis=0)
+            cluster_points = X[labels == k]
+            if len(cluster_points) > 0:
+                centroids[k] = np.median(cluster_points, axis=0)
     elif cost_metric == 'euclidean':
         for k in range(n_clusters):
-            centroids[k] = weiszfeld(X[labels == k], tolerance, max_steps)
+            cluster_points = X[labels == k]
+            if len(cluster_points) > 0:
+                centroids[k] = weiszfeld(cluster_points, tolerance, max_steps)
     elif is_Lp(cost_metric):
         p = int(cost_metric[1:])
         for k in range(n_clusters):   
@@ -67,9 +72,19 @@ def update_centroids(X, labels, n_clusters, centroids, cost_metric=None, toleran
             grad[np.isnan(grad)] = 0  # Replace NaN values with zero
             centroids[k] -= descent_rate * grad / num_points
 
+    for k in range(n_clusters):
+        cluster_points = X[labels == k]
+        distances = np.linalg.norm(cluster_points - centroids[k], axis=1)
+        weights = np.zeros_like(distances)
+        nonzero_indices = distances != 0
+        if np.any(nonzero_indices):
+            weights[nonzero_indices] = 1 / distances[nonzero_indices]
+            weights /= np.sum(weights)
+        centroids[k] = np.dot(weights, cluster_points)
+
     return centroids
 
-def calculate_distances(X, cost_metric=None, centroids=None, **kwargs):
+def calculate_distances(X, cost_metric=None, centroids=None):
     if cost_metric is None:
         raise ValueError('No value for the argument "cost_metric" was received.')
     if centroids is None:

@@ -19,7 +19,7 @@ class KMeans:
         self.max_steps = None
         self.descent_rate = None
     
-    def fit(self, X, cost_metric='squared_euclidean', tolerance=1e-6, max_steps=150, descent_rate=0.05, random_state=None, **kwargs):
+    def fit(self, X, cost_metric='squared_euclidean', tolerance=1e-6, max_steps=150, descent_rate=0.05, random_state=None, verbose=True, **kwargs):
         """
         This function implements the k-means algorithm.
 
@@ -29,6 +29,9 @@ class KMeans:
         :param cost_metric: String. One of 'squared_euclidean', 'euclidean', 'manhattan', 'Lp' (where p is a positive integer), or 'euclidean^n' (where n is a positive integer).
         :param tolerance: Float. The algorithm update_centroid() will stop if the change in the centroid is less than this value.
         :param max_steps: Integer. The algorithm update_centroid() will stop if the number of steps exceeds this value.
+        :param descent_rate: Float. The learning rate for gradient descent.
+        :param random_state: Integer. If provided, this will be used as the seed for NumPy's random number generator.
+        :param verbose: Boolean. If True, the function will print suggestions and warnings.
         :param kwargs: Keyword arguments. See utils.py for details.
         """
 
@@ -41,15 +44,16 @@ class KMeans:
 
         print('\n' + 'Using cost metric: ' + cost_metric)
         if cost_metric not in ['squared_euclidean', 'manhattan']:
-            print(#'For cost metrics other than "squared_euclidean and manhattan", the centroids are computed using an iterative algorithm. \n'
+            if verbose:
+                print(#'For cost metrics other than "squared_euclidean and manhattan", the centroids are computed using an iterative algorithm. \n'
                     'This iterative algorithm may take a while.')
             
-            if tolerance == 1e-6 and max_steps == 150:
+            if verbose and tolerance == 1e-6 and max_steps == 150:
                 print('You have the option of defining the keyword arguments "tolerance" and "max_steps" when calling KMeans.fit(). \n'
                         'If you omit these, the default values (1e-6 and 150, respectively) from utils.py will be used for the iterative algorithm.')
                     
             if utils.is_Lp(cost_metric) or utils.is_euclidean_power(cost_metric):
-                if descent_rate == 0.05:
+                if verbose and descent_rate == 0.05:
                     print('Notice: For cost metrics of the form "Lp" and "euclidean^n", centroids are computed using gradient descent. \n'
                         'You have the option of defining the keyword argument "descent_rate". \n'
                         'If you omit this, the default value (0.05) from utils.py will be used.')
