@@ -26,11 +26,11 @@ def gaussian_kernel_grad(y, i, l, gauss_kernel, sigma=1.0, verbose=0, second_ker
     """
     if second_kernel is None: 
         result = np.multiply(-gauss_kernel[i, l].reshape((y.shape[0], 1)), y[i, :] - y[l, :]) / sigma**2
-        if verbose > 0: print(f"Gaussian Kernel Grad (i = {i}, l = {l}); Use Case 1: \n{result}")
+        if verbose > 10: print(f"Gaussian Kernel Grad (i = {i}, l = {l}); Use Case 1: \n{result}")
     else: 
         result = np.multiply(-(gauss_kernel[i, l] * second_kernel[i, l]).reshape((y.shape[0], 1)), y[i, :] - y[l, :]) / sigma**2
-        if verbose > 0: print(f"Gaussian Kernel Grad (i = {i}, l = {l}); Use Case 2: \n{result}")
-    if verbose > 2: 
+        if verbose > 10: print(f"Gaussian Kernel Grad (i = {i}, l = {l}); Use Case 2: \n{result}")
+    if verbose > 10: 
         print("Shape of gradient = {}".format(result.shape))
     return result
 
@@ -44,11 +44,11 @@ def gaussian_kernel_kl_grad(y, x, lam, k_y, k_z, verbose = 0):
         if verbose > 2:
             print("Iteration {}".format(i))
         grad[i] = np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose = verbose, second_kernel = k_z), axis=0) / np.sum(k_z[i, :] * k_y[i, :])
-        if i == 0 and verbose > 0:     
+        if i == 0 and verbose > 10:     
             print(f"Numerator Sum: \n{np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose=verbose, second_kernel = k_z), axis=0)} \nwith dimensions {np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose=verbose, second_kernel = k_z), axis=0).shape}")
             print("Gradient after update one: \n{}\n".format(grad[i]))
         grad[i] -= np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose = verbose), axis=0) / np.sum(k_y[i, :])
-        if i == 0 and verbose > 0: 
+        if i == 0 and verbose > 10: 
             print(f"Numerator Sum 2: \n{np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose=verbose), axis=0)} \nwith shape {np.sum(gaussian_kernel_grad(y, i, np.arange(y.shape[0]), k_y, verbose=verbose), axis=0).shape}")
             print("Gradient after update two: \n{}".format(grad[i]))
         # print("Dimension of Gradient: {}".format(grad[i].shape))
@@ -58,9 +58,9 @@ def gaussian_kernel_kl_grad(y, x, lam, k_y, k_z, verbose = 0):
         grad[i] = y[i] - x[i] + lam * grad[i]
     return grad
 
-def compute_barycenter(x, z, y_init, lam, barycenter_cost_grad, kern_y=gaussian_kernel, kern_z=gaussian_kernel, 
+def compute_barycenter(x, z, y_init, lam, barycenter_cost_grad=gaussian_kernel_kl_grad, kern_y=gaussian_kernel, kern_z=gaussian_kernel, 
                        epsilon=0.001, lr=0.01, max_iter=1000, verbose=0, adaptive_lr=False, growing_lambda=True, 
-                       warm_stop = 200, max_lambda = 100): 
+                       warm_stop = 200, max_lambda = 300, monitor=None): 
     """
     Computes the barycenter with a flow-based approach. In other words, 
     we run gradient descent on y_i with respect to the barycenter objective
@@ -94,17 +94,20 @@ def compute_barycenter(x, z, y_init, lam, barycenter_cost_grad, kern_y=gaussian_
     if growing_lambda: 
         lambda_growth = max_lambda / warm_stop
         lam = 0.0
+    if monitor is not None: 
+        monitor_iters = 0
+        monitor.eval({"y": y, "Lambda": lam, "Iteration": iter, "Gradient Norm": None})
     # iterate until maximum iteration or convergence
     while iter < max_iter: 
         # update the iteration count 
         iter += 1
         k_y = kern_y(y)
         # compute the gradient vector of this iteration
-        grad = barycenter_cost_grad(x, y, lam, k_y, k_z, verbose=verbose)
+        grad = barycenter_cost_grad(y, x, lam, k_y, k_z, verbose=verbose)
         # run a gradient descent step
         y = y - lr * grad
         # check for convergence
-        if np.linalg.norm(grad) < epsilon:
+        if iter > warm_stop and np.linalg.norm(grad) < epsilon:
             break
         # adaptive update of the learning rate
         if adaptive_lr and lr < 1 and lr > 0.0001: 
@@ -116,6 +119,12 @@ def compute_barycenter(x, z, y_init, lam, barycenter_cost_grad, kern_y=gaussian_
         # update the lambda value if necessary
         if growing_lambda and iter < warm_stop: 
             lam += lambda_growth
+        # perform monitor functionality if necessary 
+        if monitor is not None and monitor_iters == 0: 
+            monitor.eval({"y": y, "Lambda": lam, "Iteration": iter, "Gradient Norm": old_grad_norm})
+            monitor_iters = monitor.get_monitoring_skip()
+        if monitor is not None and monitor_iters != 0: 
+            monitor_iters -= 1
     # print the final gradient norm and number of iterations
     if verbose >= 2 :
         print("Final gradient norm = {}".format(np.linalg.norm(grad)))
