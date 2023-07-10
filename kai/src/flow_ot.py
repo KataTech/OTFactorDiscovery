@@ -34,7 +34,7 @@ def gaussian_kernel_grad(y, i, l, gauss_kernel, sigma=1.0, verbose=0, second_ker
         print("Shape of gradient = {}".format(result.shape))
     return result
 
-def gaussian_kernel_kl_grad(x, y, lam, k_y, k_z, verbose = 0): 
+def gaussian_kernel_kl_grad(y, x, lam, k_y, k_z, verbose = 0): 
     """
     Computes the gradient of the loss function with respect to y. 
     """
@@ -114,7 +114,18 @@ def compute_barycenter(x, z, y_init, lam, barycenter_cost_grad, kern_y=gaussian_
         print("Number of iterations = {}".format(iter))
     return y
 
-def compute_L(X, Y, Z, lam, kern_y=gaussian_kernel, kern_z=gaussian_kernel): 
+def gaussian_kernel_duo(Y, Y_center, sigma = 1.0): 
+    """
+    Compute the kernel matrix using Y and Y_center
+    """
+    n = Y.shape[0]
+    kern = np.zeros((n, n))
+    for i in range(n): 
+        for l in range(n): 
+            kern[i, l] = np.exp(-(np.linalg.norm(Y[i, :] - Y_center[l, :])) / (2 * sigma**2))
+    return kern
+
+def kl_barycenter_loss(Y, Y_center, X, Z, lam, kern_y = gaussian_kernel_duo, kern_z = gaussian_kernel, verbose = 0): 
     """
     Computes the loss function of the barycenter problem.
 
@@ -130,11 +141,15 @@ def compute_L(X, Y, Z, lam, kern_y=gaussian_kernel, kern_z=gaussian_kernel):
         - kern_z: the kernel to use for estimating the distribution of z 
     """
     # compute the kernel matrices
-    k_y = kern_y(Y)
+    k_y = kern_y(Y, Y_center)
     k_z = kern_z(Z)
     # compute the loss function
     loss = 0
     for i in range(X.shape[0]): 
-        loss += np.linalg.norm(Y[i, :] - X[i, :])**2 / 2
-        loss += lam * np.log(np.sum(k_y[i, :] * k_z[i, :]) / (np.sum(k_y[i, :]) * np.sum(k_z[i, :])))
+        temp = 0
+        temp += np.linalg.norm(Y[i, :] - X[i, :])**2 / 2
+        temp += lam * np.log(np.sum(k_y[i, :] * k_z[i, :]) / (np.sum(k_y[i, :]) * np.sum(k_z[i, :])))
+        if verbose > 0: 
+            print(f"The loss value evaluation for entry i = {i}: {temp}")
+        loss += temp 
     return loss
