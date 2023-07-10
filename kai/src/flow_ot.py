@@ -59,7 +59,8 @@ def gaussian_kernel_kl_grad(y, x, lam, k_y, k_z, verbose = 0):
     return grad
 
 def compute_barycenter(x, z, y_init, lam, barycenter_cost_grad, kern_y=gaussian_kernel, kern_z=gaussian_kernel, 
-                       epsilon=0.001, lr=0.01, max_iter=1000, verbose=0, adaptive_lr=False): 
+                       epsilon=0.001, lr=0.01, max_iter=1000, verbose=0, adaptive_lr=False, growing_lambda=True, 
+                       warm_stop = 200, max_lambda = 100): 
     """
     Computes the barycenter with a flow-based approach. In other words, 
     we run gradient descent on y_i with respect to the barycenter objective
@@ -89,6 +90,10 @@ def compute_barycenter(x, z, y_init, lam, barycenter_cost_grad, kern_y=gaussian_
     # pre-compute the kernel matrix for Z since that remains constant
     k_z = kern_z(z)
     old_grad_norm = float('inf')
+    # pre-compute the growth rate of the lambda and the stopping iteration
+    if growing_lambda: 
+        lambda_growth = max_lambda / warm_stop
+        lam = 0.0
     # iterate until maximum iteration or convergence
     while iter < max_iter: 
         # update the iteration count 
@@ -108,6 +113,9 @@ def compute_barycenter(x, z, y_init, lam, barycenter_cost_grad, kern_y=gaussian_
         # print the gradient norm every 100 iterations
         if verbose >= 1 and iter % 100 == 0:
             print("Iteration {}: gradient norm = {}".format(iter, np.linalg.norm(grad)))
+        # update the lambda value if necessary
+        if growing_lambda and iter < warm_stop: 
+            lam += lambda_growth
     # print the final gradient norm and number of iterations
     if verbose >= 2 :
         print("Final gradient norm = {}".format(np.linalg.norm(grad)))
