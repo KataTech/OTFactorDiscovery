@@ -72,35 +72,7 @@ def update_centroids(X, labels, n_clusters, centroids, cost_metric=None, toleran
             grad[np.isnan(grad)] = 0  # Replace NaN values with zero
             centroids[k] -= descent_rate * grad / num_points
 
-    for k in range(n_clusters):
-        cluster_points = X[labels == k]
-        distances = np.linalg.norm(cluster_points - centroids[k], axis=1)
-        weights = np.zeros_like(distances)
-        nonzero_indices = distances != 0
-        if np.any(nonzero_indices):
-            weights[nonzero_indices] = 1 / distances[nonzero_indices]
-            weights /= np.sum(weights)
-        centroids[k] = np.dot(weights, cluster_points)
-
     return centroids
-
-def calculate_distances(X, cost_metric=None, centroids=None):
-    if cost_metric is None:
-        raise ValueError('No value for the argument "cost_metric" was received.')
-    if centroids is None:
-        raise ValueError('No value for the argument "centroids" was received.')
-    
-    if cost_metric in ['euclidean', 'squared_euclidean']:
-        distances = np.linalg.norm(X[:, np.newaxis] - centroids, axis=-1) # missing the squared case, but not necessary since x^2 is monotonic
-    elif cost_metric == 'manhattan':
-        distances = np.linalg.norm(X[:, np.newaxis] - centroids, ord=1, axis=-1)
-    elif is_Lp(cost_metric):
-        p = int(cost_metric[1:])
-        distances = np.linalg.norm(X[:, np.newaxis] - centroids, ord=p, axis=-1)
-    elif is_euclidean_power(cost_metric):
-        p = 2 # this exponent can be customized by end-users for non-euclidean distances
-        distances = np.linalg.norm(X[:, np.newaxis] - centroids, ord=p, axis=-1) # missing the n-th power, but not necessary since x^n is monotonic
-    return distances
 
 
 def weiszfeld(X, tolerance, max_steps):
@@ -117,15 +89,62 @@ def weiszfeld(X, tolerance, max_steps):
         # Calculate the distances from the current geometric median to all points
         distances = np.linalg.norm(X - geometric_median, axis=1)
 
-        # Update the geometric median
-        weights = 1 / distances
-        weights /= np.sum(weights)  # Normalize the weights
-        new_geometric_median = np.dot(weights, X)
+        # Handle division-by-zero issues
+        nonzero_indices = distances != 0
+        if np.any(nonzero_indices):
+            weights = 1 / np.where(distances != 0, distances, np.finfo(float).eps)  # Replace zero distances with a small epsilon
+            weights /= np.sum(weights)  # Normalize the weights
+            new_geometric_median = np.dot(weights, X)
+        else:
+            new_geometric_median = geometric_median
 
         # Check if the algorithm has converged
-        if np.linalg.norm(new_geometric_median - geometric_median) < tolerance:
+        if np.allclose(geometric_median, new_geometric_median, atol=tolerance):
             break
         else:
             geometric_median = new_geometric_median
 
     return geometric_median
+
+
+def plusplus(X, n_clusters, cost_metric=None, random_state=None, verbose=True):
+    if cost_metric is None:
+        raise ValueError('No value for the argument "cost_metric" was received.')
+    if random_state is None:
+        np.random.seed(0)
+        if verbose:
+            print('Warning: No value for the argument "random_state" was received by the utils.plusplus() initialization. It is recommended that you set this for reproducibility. \n'
+                'Defaulting to random_state=0.')
+    else:
+        np.random.seed(random_state)
+    
+    centroids = np.empty((n_clusters, X.shape[1]))
+    centroids[0] = X[np.random.randint(X.shape[0])]  # Choose the first centroid randomly
+    for k in range(1, n_clusters):
+        distances = calculate_distances(X, cost_metric, centroids[:k])
+        probabilities = np.min(distances, axis=1) / np.sum(np.min(distances, axis=1))  # Compute the probability of each point being chosen as the next centroid
+        centroids[k] = X[np.random.choice(X.shape[0], p=probabilities)]  # Choose the next centroid randomly, with probabilities proportional to the distances from the previous centroids
+    return centroids
+
+
+def calculate_distances(X, cost_metric=None, centroids=None):
+    if cost_metric is None:
+        raise ValueError('No value for the argument "cost_metric" was received.')
+    if centroids is None:
+        raise ValueError('No value for the argument "centroids" was received.')
+    
+    if cost_metric == 'squared_euclidean':
+        distances = np.linalg.norm(X[:, np.newaxis] - centroids, axis=-1)**2
+    elif cost_metric == 'manhattan':
+        distances = np.linalg.norm(X[:, np.newaxis] - centroids, ord=1, axis=-1)
+    elif cost_metric == 'euclidean':
+        distances = np.linalg.norm(X[:, np.newaxis] - centroids, axis=-1)
+    elif is_Lp(cost_metric):
+        p = int(cost_metric[1:])
+        distances = np.linalg.norm(X[:, np.newaxis] - centroids, ord=p, axis=-1)
+    elif is_euclidean_power(cost_metric):
+        p = 2 # this exponent can be customized by end-users for non-euclidean distances
+        n = int(cost_metric[10:])
+        distances = np.linalg.norm(X[:, np.newaxis] - centroids, ord=p, axis=-1)**n
+        
+    return distances
