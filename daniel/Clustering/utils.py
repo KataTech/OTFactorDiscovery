@@ -22,20 +22,20 @@ def is_euclidean_power(cost_metric):
     return re.match(pattern, cost_metric) is not None
 
 
-def update_quasicenters(X, labels, n_clusters, quasicenters, cost_metric=None, tolerance=None, max_steps=None, descent_rate=None, max_descents=None):
+def update_optimoids(X, labels, n_clusters, optimoids, cost_metric=None, tolerance=None, max_steps=None, descent_rate=None, max_descents=None):
     """
-    This function updates the quasicenters based on the given cost metric.
+    This function updates the optimoids based on the given cost metric.
     
     :param X: The input data.
     :param labels: The cluster labels for the data.
     :param n_clusters: The number of clusters.
-    :param quasicenters: The current quasicenters.
+    :param optimoids: The current optimoids.
     :param cost_metric: The cost metric used for clustering. 
     :param tolerance: The tolerance for convergence.
     :param max_steps: The maximum number of steps for the Weiszfeld algorithm.
     :param descent_rate: The learning rate for gradient descent.
     :param max_descents: The maximum number of descents for gradient descent.
-    :return: The updated quasicenters.
+    :return: The updated optimoids.
     """
     if cost_metric is None:
         raise ValueError('No value for the argument "cost_metric" was received.')
@@ -48,22 +48,22 @@ def update_quasicenters(X, labels, n_clusters, quasicenters, cost_metric=None, t
     if max_descents is None:
         raise ValueError('No value for the argument "max_descents" was received.')
     
-    quasicenters = np.copy(quasicenters)
-    if cost_metric == 'squared_euclidean':
+    optimoids = np.copy(optimoids)
+    if cost_metric in ['squared_euclidean', 'euclidean^2']:
         for k in range(n_clusters):
             cluster_points = X[labels == k]
             if len(cluster_points) > 0:
-                quasicenters[k] = np.mean(cluster_points, axis=0)
-    elif cost_metric == 'manhattan':
+                optimoids[k] = np.mean(cluster_points, axis=0)
+    elif cost_metric in ['manhattan', 'L1']:
         for k in range(n_clusters):
             cluster_points = X[labels == k]
             if len(cluster_points) > 0:
-                quasicenters[k] = np.median(cluster_points, axis=0)
-    elif cost_metric == 'euclidean':
+                optimoids[k] = np.median(cluster_points, axis=0)
+    elif cost_metric in ['euclidean', 'euclidean^1', 'L2']:
         for k in range(n_clusters):
             cluster_points = X[labels == k]
             if len(cluster_points) > 0:
-                quasicenters[k] = weiszfeld(cluster_points, tolerance, max_steps)
+                optimoids[k] = weiszfeld(cluster_points, tolerance, max_steps)
     elif is_Lp(cost_metric) or is_euclidean_power(cost_metric):
         if is_Lp(cost_metric):
             p = int(cost_metric[1:])
@@ -77,16 +77,16 @@ def update_quasicenters(X, labels, n_clusters, quasicenters, cost_metric=None, t
                 grad = np.zeros(X.shape[1])
                 num_points = np.sum(labels == k)  # Number of points in cluster k
                 for x in X[labels == k]:
-                    distance = np.abs(quasicenters[k] - x)
+                    distance = np.abs(optimoids[k] - x)
                     non_zero_indices = distance != 0
                     if np.any(non_zero_indices):  # Check if there are non-zero indices
-                        grad += n * np.sum(distance[non_zero_indices]**p, axis=-1)**(n/p - 1) * distance[non_zero_indices]**(p - 1) * np.sign(quasicenters[k] - x)[non_zero_indices]
+                        grad += n * np.sum(distance[non_zero_indices]**p, axis=-1)**(n/p - 1) * distance[non_zero_indices]**(p - 1) * np.sign(optimoids[k] - x)[non_zero_indices]
                 grad[np.isnan(grad)] = 0  # Replace NaN values with zero
                 if np.allclose(grad, 0, atol=tolerance):
                     break
-                quasicenters[k] -= descent_rate * grad / num_points
+                optimoids[k] -= descent_rate * grad / num_points
 
-    return quasicenters
+    return optimoids
 
 
 def weiszfeld(X, tolerance, max_steps):
@@ -128,7 +128,7 @@ def weiszfeld(X, tolerance, max_steps):
 
 def plusplus(X, n_clusters, cost_metric=None, random_state=None, verbose=True):
     """
-    This function implements the k-means++ initialization method for the quasicenters.
+    This function implements the k-means++ initialization method for the optimoids.
     This method aims to provide a better initialization than random initialization, which can lead to bad local optima.
     
     :param X: The input data.
@@ -136,7 +136,7 @@ def plusplus(X, n_clusters, cost_metric=None, random_state=None, verbose=True):
     :param cost_metric: The cost metric used for clustering.
     :param random_state: The seed for the random number generator.
     :param verbose: Whether to print warnings and suggestions.
-    :return: The initialized quasicenters.
+    :return: The initialized optimoids.
     """
     if cost_metric is None:
         raise ValueError('No value for the argument "cost_metric" was received.')
@@ -148,43 +148,42 @@ def plusplus(X, n_clusters, cost_metric=None, random_state=None, verbose=True):
     else:
         np.random.seed(random_state)
     
-    cost_metric = 'euclidean^9'
-    quasicenters = np.empty((n_clusters, X.shape[1]))
-    quasicenters[0] = X[np.random.randint(X.shape[0])]  # Choose the first quasicenter randomly
+    optimoids = np.empty((n_clusters, X.shape[1]))
+    optimoids[0] = X[np.random.randint(X.shape[0])]  # Choose the first optimoid randomly
     for k in range(1, n_clusters):
-        distances = calculate_distances(X, cost_metric, quasicenters[:k])
-        probabilities = np.min(distances, axis=1) / np.sum(np.min(distances, axis=1))  # Compute the probability of each point being chosen as the next quasicenter
-        quasicenters[k] = X[np.random.choice(X.shape[0], p=probabilities)]  # Choose the next quasicenter randomly, with probabilities proportional to the distances from the previous quasicenters
+        distances = calculate_distances(X, cost_metric, optimoids[:k])
+        probabilities = np.min(distances, axis=1) / np.sum(np.min(distances, axis=1))  # Compute the probability of each point being chosen as the next optimoid
+        optimoids[k] = X[np.random.choice(X.shape[0], p=probabilities)]  # Choose the next optimoid randomly, with probabilities proportional to the distances from the previous optimoids
     
-    return quasicenters
+    return optimoids
 
 
-def calculate_distances(X, cost_metric=None, quasicenters=None):
+def calculate_distances(X, cost_metric=None, optimoids=None):
     """
-    This function calculates the distances from each data point to each quasicenter.
+    This function calculates the distances from each data point to each optimoid.
     
     :param X: The input data.
     :param cost_metric: The cost metric used for clustering.
-    :param quasicenters: The quasicenters of the clusters.
-    :return: The distances from each data point to each quasicenter.
+    :param optimoids: The optimoids of the clusters.
+    :return: The distances from each data point to each optimoid.
     """
     if cost_metric is None:
         raise ValueError('No value for the argument "cost_metric" was received.')
-    if quasicenters is None:
-        raise ValueError('No value for the argument "quasicenters" was received.')
+    if optimoids is None:
+        raise ValueError('No value for the argument "optimoids" was received.')
     
-    if cost_metric == 'squared_euclidean':
-        distances = np.linalg.norm(X[:, np.newaxis] - quasicenters, axis=-1)**2
-    elif cost_metric == 'manhattan':
-        distances = np.linalg.norm(X[:, np.newaxis] - quasicenters, ord=1, axis=-1)
-    elif cost_metric == 'euclidean':
-        distances = np.linalg.norm(X[:, np.newaxis] - quasicenters, axis=-1)
+    if cost_metric in ['squared_euclidean', 'euclidean^2']:
+        distances = np.linalg.norm(X[:, np.newaxis] - optimoids, axis=-1)**2
+    elif cost_metric in ['manhattan', 'L1']:
+        distances = np.linalg.norm(X[:, np.newaxis] - optimoids, ord=1, axis=-1)
+    elif cost_metric in ['euclidean', 'euclidean^1', 'L2']:
+        distances = np.linalg.norm(X[:, np.newaxis] - optimoids, axis=-1)
     elif is_Lp(cost_metric):
         p = int(cost_metric[1:])
-        distances = np.linalg.norm(X[:, np.newaxis] - quasicenters, ord=p, axis=-1)
+        distances = np.linalg.norm(X[:, np.newaxis] - optimoids, ord=p, axis=-1)
     elif is_euclidean_power(cost_metric):
         p = 2 # this exponent can be customized by end-users for non-euclidean distances
         n = int(cost_metric[10:])
-        distances = np.linalg.norm(X[:, np.newaxis] - quasicenters, ord=p, axis=-1)**n
+        distances = np.linalg.norm(X[:, np.newaxis] - optimoids, ord=p, axis=-1)**n
         
     return distances
