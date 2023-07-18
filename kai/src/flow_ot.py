@@ -92,8 +92,7 @@ def compute_barycenter(x, z, y_init, lam, barycenter_cost_grad=gaussian_kernel_k
     old_grad_norm = float('inf')
     # pre-compute the growth rate of the lambda and the stopping iteration
     if growing_lambda: 
-        lambda_growth = max_lambda / warm_stop
-        lam = 0.0
+        lambda_growth = (max_lambda - lam) / warm_stop
     if monitor is not None: 
         monitor_iters = 0
         monitor.eval({"y": y, "Lambda": lam, "Iteration": iter, "Gradient Norm": None})
@@ -102,8 +101,12 @@ def compute_barycenter(x, z, y_init, lam, barycenter_cost_grad=gaussian_kernel_k
         # update the iteration count 
         iter += 1
         k_y = kern_y(y)
+        if iter == 1 and verbose == True: 
+            print("Kernel Y from First Iteration:\n", k_y)
         # compute the gradient vector of this iteration
         grad = barycenter_cost_grad(y, x, lam, k_y, k_z, verbose=verbose)
+        if iter == 1: 
+            print("Gradient from First Iteration:\n", grad)
         # run a gradient descent step
         y = y - lr * grad
         # check for convergence
@@ -295,17 +298,24 @@ class SemiSupervisedOT():
         else: 
             raise NotImplementedError
         # add the probability weights to the current kernel 
-        w_kern_y = np.multiply(self.P.reshape((self.N * self.K, 1)), kern_y)
+        w_kern_y = np.multiply(self.P.reshape((self.N * self.K, 1)), kern_y).T
+        if iter == 1 and verbose > 2: 
+            print("Weighted Kernel from First Iteration:\n", w_kern_y)
         # iterate over all possible indices of i and k
         for i in range(self.N): 
             for k in range(self.K): 
                 if self.P[i, k] == 0: 
                     grad[self.get_index(i, k)] = np.zeros(self.M)
                     continue
+                # if verbose > 1 and i == 8: 
+                #     print(f"Processing entry ({i}, {k}) ---------------------------------")
                 # process the joint kernel term of the gradient 
                 joint_prod = w_kern_y[self.get_index(i, k), :] * self.kern_z[self.get_index(i, k), :]
                 y_diff = Y[self.get_index(i, k), :] - Y
                 weighted_diffs = ((joint_prod * y_diff.T).T) / (-1 * sigma ** 2)
+                # if verbose > 1 and i == 8: 
+                #     print(f"Joint Prod:\n", joint_prod)
+                #     print(f"Weighted Diffs:\n", weighted_diffs)
                 grad[self.get_index(i, k)] = np.sum(weighted_diffs, axis = 0) / np.sum(joint_prod)
                 # process the y kernel term of the gradient 
                 weighted_diffs = ((w_kern_y[self.get_index(i, k)] * y_diff.T).T) / (-1 * sigma ** 2)
@@ -338,15 +348,15 @@ class SemiSupervisedOT():
             # skip over entries with known Z values 
             if self.labels[i] != -1: 
                 continue
-            if verbose > 1: 
-                print(f"Probability Update for i={i}: {self.P[i, :]}")
+            # if verbose > 1: 
+            #     print(f"Probability Update for i={i}: {self.P[i, :]}")
             total_weight = sum([self.estimate_p_ik(i, k_prime, w_kern_y, old_P) for k_prime in np.arange(self.K)])
             for k in range(self.K): 
                 # update the probability weight by comparing to other classes
                 self.P[i, k] = self.estimate_p_ik(i, k, w_kern_y, old_P) / total_weight
 
-    def train(self, Y_init, lr = 0.001, epsilon = 0.001, max_iter = 1000, growing_lambda=True, fixed_lam=0.0, 
-              warm_stop = 50, max_lambda = 150, monitor=None, verbose = 0): 
+    def train(self, Y_init, lr = 0.001, epsilon = 0.001, max_iter = 1000, growing_lambda=True, init_lam=0.0, 
+              warm_stop = 50, max_lam = 150, monitor=None, verbose = 0): 
         """
         Perform training on the semi-supervised optimal transport learning model. 
 
@@ -370,16 +380,16 @@ class SemiSupervisedOT():
             raise NotImplementedError
         iter = 0
         # initialize the lambda values 
+        lam = init_lam
         if growing_lambda is True: 
-            lam = 0.0
-            lambda_per_iter = max_lambda / warm_stop
-        else: 
-            lam = fixed_lam
+            lambda_per_iter = (max_lam - init_lam) / warm_stop
         while iter < max_iter: 
             # update the iteration counter
             iter += 1
             # compute the gradient with respect to Y currently
             grad = self.gradient(Y, lam, iter, verbose)
+            if iter == 1 and verbose > 2: 
+                print("Gradient from First Iteration:\n", grad)
             # TODO: remove these print statements after debug session
             if verbose > 4: 
                 print(f"Iteration {iter} Gradient Report:")
@@ -403,22 +413,24 @@ class SemiSupervisedOT():
             # display conditions of the optimization procedure
             if verbose > 0 and iter % 100 == 0: 
                 print("Iteration {}: gradient norm = {}".format(iter, grad_norm))
+                if verbose > 2: 
+                    print(f"Gradient: {grad}")
         # reached convergence... 
         if verbose > 0: 
             print("FINAL: Gradient norm = {} at iteration {}".format(grad_norm, iter))
-        return Y
+        return self.select_best(Y)
         
     def select_best(self, Y, verbose = 0): 
         """
         
         """
-        predictions = np.zeros((Y.shape[0], Y.shape[2]))
-        assignments = np.zeros(Y.shape[0])
+        predictions = np.zeros((self.N, self.M))
+        assignments = np.zeros(self.N, dtype=np.int64)
         for i in range(self.N): 
-            assignments[i] = np.argmax(self.P[i])
-            predictions[i, :] = Y[i, assignments[i], :]            
+            assignments[i] = int(np.argmax(self.P[i]))
             if verbose > 0: 
                 print(f"Selecting class {assignments[i]} for observation {i}")
+            predictions[i, :] = Y[self.get_index(i, assignments[i]), :]            
         return predictions, assignments
             
 
