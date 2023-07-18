@@ -422,7 +422,11 @@ class SemiSupervisedOT():
         
     def select_best(self, Y, verbose = 0): 
         """
-        
+        Select the best version of Y across the different classes for every y_i. 
+        In the end, you return the predictions, which is a filtered Y matrix containing 
+        only one vector for every i-th observation (as opposed to K vectors) and the 
+        assignments that indicate the class that is best associated with the i-th 
+        observation. 
         """
         predictions = np.zeros((self.N, self.M))
         assignments = np.zeros(self.N, dtype=np.int64)
@@ -432,10 +436,30 @@ class SemiSupervisedOT():
                 print(f"Selecting class {assignments[i]} for observation {i}")
             predictions[i, :] = Y[self.get_index(i, assignments[i]), :]            
         return predictions, assignments
-            
 
+    @staticmethod            
+    def mask(labels: np.ndarray, percentage: float, seed = None): 
+        """
+        Mask a certain percentage of the supplied labels by replacing them with negative one. 
 
-            
+        Inputs: 
+            - labels: a N-by-1 vector of values ranging from 0 to K - 1 that represent classes 
+                    of an observation. 
+            - percentage: the percentage of the labels to mask, this is automatically rounded 
+                    to the nearest integer in our operation. 
+            - seed: the random seed to use for reproducibility. 
 
+        Returns both the masked version and ground truth. 
+        """
+        element_masked = int(labels.shape[0] * percentage)
+        if seed is not None: 
+            np.random.seed(seed)
+        # randomly select elements to be masked
+        mask = np.random.choice(labels.shape[0], element_masked, replace = False)
+        masked_labels = np.copy(labels)
+        masked_labels[mask] = -1
+        return masked_labels, labels
+        
+        
 
                 
