@@ -202,129 +202,148 @@ class SemiSupervisedOT():
         else: 
             raise NotImplementedError
         if kernel_z == "gaussian": 
-            self.kernel_z = gaussian_kernel_single
+            self.kernel_z = kernel_z
         else: 
             raise NotImplementedError
         
+    def get_index(self, i, k): 
+        """
+        Compute the index in the aggregated representations of Y and its kernel given
+        the (i, k) indices. 
+        """
+        return i * self.K + k
+
+    def gaussian_kernel(self, X, sigma): 
+        """
+        Compute the gaussian kernel of a matrix. 
+        """
+        # Compute the squared Euclidean distance matrix
+        distances = np.sum(X**2, axis=1, keepdims=True) - 2 * X @ X.T + np.sum(X.T**2, axis=0, keepdims=True)
+        # Compute the kernel matrix using the Gaussian kernel
+        K_x = np.exp(-distances / (2 * sigma ** 2))
+        return K_x
     
-    def initialize(self, X: np.ndarray, Z: np.ndarray, K: int, Z_map: np.ndarray): 
+    def construct_z(self): 
+        Z = np.zeros((self.N, self.K, self.D))
+        for i in range(self.N): 
+            Z[i] = self.Z_map
+        return Z.reshape((self.N * self.K, self.D))
+    
+    def initialize(self, X: np.ndarray, labels: np.ndarray, K: int, Z_map: np.ndarray): 
         """
         Pre-compute attributes based on the supplied training data. 
 
         Inputs: 
             X: a N-by-M numpy array of observations where each row represents an observation
                 for a total of N observations with M attributes each. 
-            Z: a N-by-1 numpy array of labels. If an entry is -1, then that means the label
+            labels: a N-by-1 numpy array of labels. If an entry is -1, then that means the label
                 is unknown. Otherwise, it should be an integer between 0 and K - 1, inclusive. 
             K: the total number of classes. 
             Z_map: a K-by-1 vector indicating the value associated with the K-th class. 
         """
         # set global variables
         self.X = X
-        self.Z = Z
+        self.labels = labels
         self.N, self.M = X.shape
         self.K = K
+        self.Z_map = Z_map
+        self.D = self.Z_map.shape[1]
         # conduct sanity checks for the dimensions of the input variables
-        assert self.Z.shape[0] == self.N, "ERROR: The number of entries in Z does not match N."
+        assert self.labels.shape[0] == self.N, "ERROR: The number of entries in labels does not match N."
+        assert self.Z_map.shape[0] == self.K, "ERROR: The number of entries in Z-Map does not match K."
         # initialize the probability matrix P, where the entry (i, k) represents the probability 
         # that the i-th observation belongs to class k
         self.P = np.zeros((self.N, self.K))
         for i in range(self.N): 
-            if self.Z[i] == -1: 
+            if self.labels[i] == -1: 
                 # assign uniform probability to each class if the observation class is unknown
                 self.P[i, :] = 1 / float(self.K)
             else: 
-                self.P[i, self.Z[i]] = 1.0
-        # pre-compute the kernel with respect to each class
-        self.kern_z = np.zeros((self.K, self.K))
-        for k in range(self.K): 
-            for kk in range(self.K): 
-                self.kern_z[k, kk] = self.kernel_z(Z_map[k], Z_map[kk], *self.kern_z_params)
-
-    def compute_kernel(self, mat: np.ndarray, kern_mode: str, sigma: float, second_kern:np.ndarray): 
-        """
-        Compute kernel for the matrix 'mat' according to the specified kernel 
-        type 'kern_mode'. 
-
-        Requires that 'mat' has a dimension of N-K-M. 
-        Inputs: 
-            mat: the matrix to compute the kernel for.
-            kern_mode: the type of kernel to compute. 
-            sigma: the parameter for the kernel. 
-            compute_grad: whether the gradient of the kernel is needed
-            second_kernel: the z kernel, supplied if we are computing y kernel
-
-        Returns the computed kernel and its associated derivative if requested. 
-        """
-        # conduct sanity check on required condition
-        assert mat.shape == (self.N, self.K, self.M), f"ERROR: Incorrect dimension {mat.shape} of the input matrix for kernel processing."
-        if kern_mode != "gaussian": 
+                self.P[i, self.labels[i]] = 1.0
+        # construct full Z matrix 
+        self.Z = self.construct_z()
+        # pre-compute the Z kernel
+        if self.kernel_z == "gaussian": 
+            self.kern_z = self.gaussian_kernel(self.Z, *self.kern_z_params)
+        else: 
             raise NotImplementedError
-        # initialize the gaussian kernels
-        kern = np.zeros((self.N, self.K, self.N, self.K, 1))
-        kern_joint = np.zeros((self.N, self.K, self.N, self.K, 1))
-        kern_grad = np.zeros((self.N, self.K, self.N, self.K, self.M))
-        kern_joint_grad = np.zeros((self.N, self.K, self.N, self.K, self.M))
-        # populate entries of the gaussian kernels
-        for i in range(self.N): 
-            for k in range(self.K): 
-                for j in range(self.N): 
-                    for k_prime in range(self.K): 
-                        kern[i, k, j, k_prime] = np.exp(np.linalg.norm(mat[i, k] - mat[j, k_prime]) / (-2 * sigma ** 2))
-                        kern_joint[i, k, j, k_prime] = kern[i, k, j, k_prime] * second_kern[k, k_prime]
-                        kern_grad[i, k, j, k_prime] = (kern[i, k, j, k_prime] / (-1 * sigma ** 2)) * (mat[i, k] - mat[j, k_prime])
-                        kern_joint_grad[i, k, j, k_prime] = kern_grad[i, k, j, k_prime] * second_kern[k, k_prime]
-        return kern, kern_joint, kern_grad, kern_joint_grad
-
-    def gradient(self, Y, lam): 
-        """
-        Compute the gradient with respect to Y. 
-        """
-        grad = np.zeros_like(Y)
-        kern_y, kern_yz, kern_y_grad, kern_yz_grad = self.compute_kernel(Y, self.kernel_y, 
-                                                                         *self.kern_y_params,
-                                                                         second_kern = self.kern_z)
-        for i in range(self.N): 
-            for k in range(self.K): 
-                grad[i, k] = (np.sum(kern_yz_grad[i, k, :, :], axis = (0, 1)) / np.sum(kern_yz[i, k, :, :]))
-                grad[i, k] -= (np.sum(kern_y_grad[i, k, :, :], axis = (0, 1)) / np.sum(kern_y[i, k, :, :]))
-                grad[i, k] *= lam
-                grad[i, k] += Y[i, k] - self.X[i]
-                grad[i, k] *= self.P[i, k]
-        return grad 
-    
-    def estimate(self, Y, i, k, sigma): 
-        """
-        Perform a kernel estimation of the sample represented by Y[i, k] sample belonging in the 
-        barycenter estimation. 
-        """
-        return np.sum(np.exp(np.linalg.norm(Y[i, k] - Y.flatten()) / (2 * sigma ** 2)))
-
-
-    def probability_update(self, Y, sigma, verbose = 0): 
-        """
-        Update the probability matrix P using the latest values of Y.
-        """
-        old_P = np.copy(self.P)
-        for i in range(self.N): 
-            # skip over entries with known Z values 
-            if self.Z[i] != -1: 
-                continue
-            for k in range(self.K): 
-                if verbose > 1: 
-                    print(f"Weighted estimate of observation {i} in class {k}: {old_P[i, k] * self.estimate(Y, i, k, sigma)}")
-                self.P[i, k] = old_P[i, k] * self.estimate(Y, i, k, sigma) / np.sum(old_P[i, :] * self.estimate(Y, i, np.arange(self.K), sigma))
 
     def augment_y(self, Y): 
         """
-        Augment the Y matrix from the input format to the desired format. 
+        Preprocess the Y matrix. Specifically, we want to create K copies of every single 
+        observations Y_i within Y. Next, we need to flatten this properly such that every 
+        K-consecutive entries represent the different versions of an observation. 
+
+        Returns the processed Y matrix. 
         """
-        # TODO: write the code for transforming the input Y matrix in the train function to have input indices (i, k) 
-        # this should be written in a "smart" way that takes into account the masking,. 
-        Y_new = np.zeros((Y.shape[0], self.K, Y.shape[1]))
-        for i in range(self.K): 
-            Y_new[:, i, :] = Y
-        return Y_new
+        Y_processed = np.zeros((self.N, self.K, self.M))
+        for k in range(self.K): 
+            Y_processed[:, k, :] = Y
+        return Y_processed.reshape((self.N * self.K, self.M))
+    
+    def gradient(self, Y, lam, iter, verbose): 
+        """
+        Compute the gradient matrix storing the individual gradient vectors with respect to each 
+        y_i observation. 
+        """
+        # initialize a gradient matrix 
+        grad = np.zeros((self.N * self.K, self.M))
+        # compute the current kernel y 
+        if self.kernel_y == "gaussian": 
+            sigma = self.kern_y_params[0]
+            kern_y = self.gaussian_kernel(Y, sigma)
+        else: 
+            raise NotImplementedError
+        # add the probability weights to the current kernel 
+        w_kern_y = np.multiply(self.P.reshape((self.N * self.K, 1)), kern_y)
+        # iterate over all possible indices of i and k
+        for i in range(self.N): 
+            for k in range(self.K): 
+                if self.P[i, k] == 0: 
+                    grad[self.get_index(i, k)] = np.zeros(self.M)
+                    continue
+                # process the joint kernel term of the gradient 
+                joint_prod = w_kern_y[self.get_index(i, k), :] * self.kern_z[self.get_index(i, k), :]
+                y_diff = Y[self.get_index(i, k), :] - Y
+                weighted_diffs = ((joint_prod * y_diff.T).T) / (-1 * sigma ** 2)
+                grad[self.get_index(i, k)] = np.sum(weighted_diffs, axis = 0) / np.sum(joint_prod)
+                # process the y kernel term of the gradient 
+                weighted_diffs = ((w_kern_y[self.get_index(i, k)] * y_diff.T).T) / (-1 * sigma ** 2)
+                grad[self.get_index(i, k)] -= np.sum(weighted_diffs, axis = 0) / np.sum(w_kern_y[self.get_index(i, k)])
+                # process the full gradient 
+                grad[self.get_index(i, k)] = Y[self.get_index(i, k)] - self.X[i] + lam * grad[self.get_index(i, k)]
+                # weight by the probability of the current index 
+                grad[self.get_index(i, k)] *= self.P[i, k]
+        return grad
+    
+    def estimate_p_ik(self, i, k, w_kern_y, P): 
+        """
+        Compute the weighted likelihood of finding observation Y_i in class K based on 
+        the kernel density estimation of the barycenter specified by "w_kern_y"
+        """
+        return P[i, k] * np.sum(w_kern_y[self.get_index(i, k)])
+    
+    def probability_update(self, Y, verbose): 
+        """
+        Perform probability updates using the current positions of the Y matrix. 
+        """
+        if self.kernel_y != "gaussian":
+            raise NotImplementedError
+        old_P = np.copy(self.P)
+        # compute the weighted estimation of the barycenter distribution
+        kern_y = self.gaussian_kernel(Y, *self.kern_y_params)
+        w_kern_y = np.multiply(self.P.reshape((self.N * self.K, 1)), kern_y)
+        # update the probability by (i, k)-th indexing
+        for i in range(self.N): 
+            # skip over entries with known Z values 
+            if self.labels[i] != -1: 
+                continue
+            if verbose > 1: 
+                print(f"Probability Update for i={i}: {self.P[i, :]}")
+            total_weight = sum([self.estimate_p_ik(i, k_prime, w_kern_y, old_P) for k_prime in np.arange(self.K)])
+            for k in range(self.K): 
+                # update the probability weight by comparing to other classes
+                self.P[i, k] = self.estimate_p_ik(i, k, w_kern_y, old_P) / total_weight
 
     def train(self, Y_init, lr = 0.001, epsilon = 0.001, max_iter = 1000, growing_lambda=True, fixed_lam=0.0, 
               warm_stop = 50, max_lambda = 150, monitor=None, verbose = 0): 
@@ -360,14 +379,20 @@ class SemiSupervisedOT():
             # update the iteration counter
             iter += 1
             # compute the gradient with respect to Y currently
-            grad = self.gradient(Y, lam)
-            if verbose > 1: 
-                print(grad)
-            grad_norm = np.linalg.norm(grad.flatten())
+            grad = self.gradient(Y, lam, iter, verbose)
+            # TODO: remove these print statements after debug session
+            if verbose > 4: 
+                print(f"Iteration {iter} Gradient Report:")
+                print(grad[self.get_index(8, 0)])
+                print(grad[self.get_index(8, 1)])
+                print(grad[self.get_index(9, 0)])
+                print(grad[self.get_index(9, 1)])
+                print()
+            grad_norm = np.linalg.norm(grad)
             # perform gradient descent step
             Y = Y - grad * lr
             # perform a probability update 
-            self.probability_update(Y, *self.kern_y_params, verbose)
+            self.probability_update(Y, verbose)
             # check for early convergence to local minimum
             if grad_norm < epsilon: 
                 if growing_lambda and iter > warm_stop: 
@@ -384,6 +409,9 @@ class SemiSupervisedOT():
         return Y
         
     def select_best(self, Y, verbose = 0): 
+        """
+        
+        """
         predictions = np.zeros((Y.shape[0], Y.shape[2]))
         assignments = np.zeros(Y.shape[0])
         for i in range(self.N): 
