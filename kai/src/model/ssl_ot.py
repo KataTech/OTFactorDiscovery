@@ -190,7 +190,7 @@ class SemiSupervisedOT():
             assert self.P_mock[i, :] == self.P_mock[i, :] / np.sum(self.P_mock[i, :]), "ERROR: The mock probability matrix is not inherently normalized."
 
     def train(self, Y_init, lr = 0.001, epsilon = 0.001, max_iter = 1000, growing_lambda=True, init_lam=0.0, 
-              warm_stop = 50, max_lam = 150, mock_prob=False, eta=0.01, monitor=None, verbose = 0): 
+              warm_stop = 50, max_lam = 150, mock_prob=False, eta=0.01, monitors=None, verbose = 0): 
         """
         Perform training on the semi-supervised optimal transport learning model. 
 
@@ -213,51 +213,56 @@ class SemiSupervisedOT():
         
         Returns the best version of Y and the assignments of the observations.
         """
-        Y = self.augment_y(Y_init)
-        # TODO: implement functionalities for using monitors
-        if monitor is not None: 
-            raise NotImplementedError
-        iter = 0
-        # initialize the lambda values 
-        lam = init_lam
+        # create a internal representation for every variable that represents the 
+        # the current state of the model
+        self._mock_prob = mock_prob
+        self._lam = init_lam
+        self._epsilon = epsilon
+        self._lr = lr
+        self._iter = 0
+        self._Y = self.augment_y(Y_init)
         if growing_lambda is True: 
             lambda_per_iter = (max_lam - init_lam) / warm_stop
-        while iter < max_iter: 
-            # update the iteration counter
-            iter += 1
+        while self._iter <= max_iter: 
             # compute the gradient with respect to Y currently
-            grad = self.gradient(Y, lam, mock_prob, iter, verbose)
-            if iter == 1 and verbose > 2: 
-                print("Gradient from First Iteration:\n", grad)
+            self._grad = self.gradient(Y, self._lam, mock_prob, self._iter, verbose)
+            if self._iter == 1 and verbose > 2: 
+                print("Gradient from First Iteration:\n", self._grad)
             # TODO: remove these print statements after debug session
             if verbose > 4: 
                 print(f"Iteration {iter} Gradient Report:")
-                print(grad[self.get_index(8, 0)])
-                print(grad[self.get_index(8, 1)])
-                print(grad[self.get_index(9, 0)])
-                print(grad[self.get_index(9, 1)])
+                print(self._grad[self.get_index(8, 0)])
+                print(self._grad[self.get_index(8, 1)])
+                print(self._grad[self.get_index(9, 0)])
+                print(self._grad[self.get_index(9, 1)])
                 print()
-            grad_norm = np.linalg.norm(grad)
+            grad_norm = np.linalg.norm(self._grad)
             # perform gradient descent step
-            Y = Y - grad * lr
+            self._Y = self._Y - self._grad * lr
+            # TODO: implement functionalities for using monitors
+            if monitors is not None: 
+                monitors.eval(self, self.get_params())
+            # update the state in preparation for the next stage of gradient descent 
+             # update the iteration counter
+            self._iter += 1
             # perform a probability update 
             self.probability_update(Y, mock_prob, eta, verbose)
             # check for early convergence to local minimum
-            if grad_norm < epsilon: 
-                if growing_lambda and iter > warm_stop: 
+            if grad_norm < self._epsilon: 
+                if growing_lambda and self._iter > warm_stop: 
                     break
             # update lambda if necessary
-            if growing_lambda and iter < warm_stop: 
-                lam += lambda_per_iter
+            if growing_lambda and self._iter < warm_stop: 
+                self._lam += lambda_per_iter
             # display conditions of the optimization procedure
-            if verbose > 0 and iter % 100 == 0: 
-                print("Iteration {}: gradient norm = {}".format(iter, grad_norm))
+            if verbose > 0 and self._iter % 100 == 0: 
+                print("Iteration {}: gradient norm = {}".format(self._iter, grad_norm))
                 if verbose > 2: 
-                    print(f"Gradient: {grad}")
+                    print(f"Gradient: {self._grad}")
         # reached convergence... 
         if verbose > 0: 
-            print("FINAL: Gradient norm = {} at iteration {}".format(grad_norm, iter))
-        return self.select_best(Y, mock_prob)
+            print("FINAL: Gradient norm = {} at iteration {}".format(grad_norm, self._iter))
+        return self.select_best(self._Y, mock_prob)
         
     def select_best(self, Y, mock_prob, verbose = 0): 
         """
@@ -284,6 +289,26 @@ class SemiSupervisedOT():
                 print(f"Selecting class {assignments[i]} for observation {i}")
             predictions[i, :] = Y[self.get_index(i, assignments[i]), :]            
         return predictions, assignments
+    
+    def get_params(self): 
+        """
+        Construct and return a dictionary storing the parameters of the model.
+        """
+        params = {}
+        params["lam"] = self._lam
+        params["Y"] = np.copy(self.Y)
+        params["mock_prob"] = self._mock_prob
+        params["label"] = np.copy(self._label)
+        params["epsilon"] = self._epsilon
+        params["max_iter"] = self._max_iter
+        params["gradient"] = self._gradient
+        params["lr"] = self._lr
+        params["P"] = self.P_mock if self._mock_prob else self.P_truth
+        params["sigma_y"] = self.kern_y_params[0]
+        params["sigma_z"] = self.kern_z_params[0]
+        return params
+
+
 
     @staticmethod            
     def mask(labels: np.ndarray, percentage: float, seed = None): 
