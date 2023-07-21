@@ -1,6 +1,6 @@
 class Monitor(): 
 
-    def __init__(self, tracker: function, reporter: function,  
+    def __init__(self, tracker, reporter,  
                  monitoring_skip: int, state_tracker: dict, 
                  reporter_args: list, tracker_args: list): 
         """
@@ -74,5 +74,5 @@ class Monitors():
         """
         Runs the evaluator function for each monitor in the monitors list. 
         """
-        for monitor in enumerate(self._monitors): 
+        for monitor in self._monitors: 
             monitor.eval(model, params)

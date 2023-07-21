@@ -225,7 +225,7 @@ class SemiSupervisedOT():
             lambda_per_iter = (max_lam - init_lam) / warm_stop
         while self._iter <= max_iter: 
             # compute the gradient with respect to Y currently
-            self._grad = self.gradient(Y, self._lam, mock_prob, self._iter, verbose)
+            self._grad = self.gradient(self._Y, self._lam, mock_prob, self._iter, verbose)
             if self._iter == 1 and verbose > 2: 
                 print("Gradient from First Iteration:\n", self._grad)
             # TODO: remove these print statements after debug session
@@ -246,7 +246,7 @@ class SemiSupervisedOT():
              # update the iteration counter
             self._iter += 1
             # perform a probability update 
-            self.probability_update(Y, mock_prob, eta, verbose)
+            self.probability_update(self._Y, mock_prob, eta, verbose)
             # check for early convergence to local minimum
             if grad_norm < self._epsilon: 
                 if growing_lambda and self._iter > warm_stop: 
@@ -295,13 +295,13 @@ class SemiSupervisedOT():
         Construct and return a dictionary storing the parameters of the model.
         """
         params = {}
+        params["iteration"] = self._iter
         params["lam"] = self._lam
-        params["Y"] = np.copy(self.Y)
+        params["Y"] = np.copy(self._Y)
         params["mock_prob"] = self._mock_prob
-        params["label"] = np.copy(self._label)
+        params["label"] = np.copy(self.labels)
         params["epsilon"] = self._epsilon
-        params["max_iter"] = self._max_iter
-        params["gradient"] = self._gradient
+        params["gradient"] = self._grad
         params["lr"] = self._lr
         params["P"] = self.P_mock if self._mock_prob else self.P_truth
         params["sigma_y"] = self.kern_y_params[0]

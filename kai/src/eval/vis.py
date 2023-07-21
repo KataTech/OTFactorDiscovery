@@ -6,7 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns 
 
-def plot_two_curves(y1, y2, x, title, left_axis_name, right_axis_name, x_axis_name): 
+def plot_two_curves(y1, y2, x, title, left_axis_name, right_axis_name, x_axis_name, 
+                    save = False, save_path = None): 
     """
     Plot two curves on the same plot. The scales should be different so that 
     both curves are visible on the screen with different colors,
@@ -25,4 +26,7 @@ def plot_two_curves(y1, y2, x, title, left_axis_name, right_axis_name, x_axis_na
 
     fig.tight_layout()
     plt.title(title)
-    plt.show()
+    if save: 
+        plt.savefig(save_path)
+    else: 
+        plt.show()
