@@ -58,7 +58,7 @@ state_tracker = mons.get_monitors()[0].get_states()
 state_tracker = state_trackers[0]
 vis.plot_two_curves(state_tracker["KL"], state_tracker["P_VALUE"], state_tracker["Iteration"], 
                     "Barycenter Fit", "KL Divergence", "P-Value", "Iteration", save = True,
-                    save_path = f"{OUTPUT_PATH}/barycenter_fit_{file_id}.png", y3 = state_tracker["Lambda"], y3_axis_name="Lambda")
+                    save_path = f"{OUTPUT_PATH}/barycenter_fit_kl_p_val{file_id}.png", y3 = state_tracker["Lambda"], y3_axis_name="Lambda")
 
 # make the animation plot of the gaussian distributions
 state_tracker = state_trackers[1]
@@ -75,5 +75,5 @@ def update(frame):
     ax.set_ylim([0, 0.5])
 
 anim = FuncAnimation(fig, update, frames = len(state_tracker["SAMPLE_A"]), interval = 500, repeat=False)
-anim.save(f"{OUTPUT_PATH}/gaussian_vis_{file_id}.gif", writer=PillowWriter(fps=5))
+anim.save(f"{OUTPUT_PATH}/barycenter_fit_gaussian_vis_{file_id}.gif", writer=PillowWriter(fps=5))
 plt.show()

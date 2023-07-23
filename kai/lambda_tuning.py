@@ -54,5 +54,5 @@ for iter in range(len(max_lam_list)):
 plot_two_curves(kl_divergence, p_value, max_lam_list, 
                 "KL Divergence and P-Value vs. Max Lambda", 
                 "KL Divergence", "P-Value", "Max Lambda", True,
-                f"{OUTPUT_PATH}/max_lam_exp_{file_id}.png")
+                f"{OUTPUT_PATH}/lambda_tuning_{file_id}.png")
 
