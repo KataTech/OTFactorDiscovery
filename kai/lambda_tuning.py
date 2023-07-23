@@ -40,7 +40,8 @@ for iter in range(len(max_lam_list)):
                                             hp["warm_stop"], max_lam_list[iter], hp["mock_prob"], hp["eta"], None, hp["verbose"], 
                                             timeit=True)
     result_y.append(y)
-    print(f"\nTraining time: {elapsed_time} seconds\n\n")
+    print(f"\nTraining time: {elapsed_time} seconds")
+    print(f"-----------------------------------------------------")
     # compute the kl divergence between the barycenter points of the two groups 
     y_a = y[labels == 0]
     y_b = y[labels == 1]
