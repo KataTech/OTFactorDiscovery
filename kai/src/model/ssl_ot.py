@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 class SemiSupervisedOT(): 
     """
@@ -190,7 +191,7 @@ class SemiSupervisedOT():
             assert self.P_mock[i, :] == self.P_mock[i, :] / np.sum(self.P_mock[i, :]), "ERROR: The mock probability matrix is not inherently normalized."
 
     def train(self, Y_init, lr = 0.001, epsilon = 0.001, max_iter = 1000, growing_lambda=True, init_lam=0.0, 
-              warm_stop = 50, max_lam = 150, mock_prob=False, eta=0.01, monitors=None, verbose = 0): 
+              warm_stop = 50, max_lam = 150, mock_prob=False, eta=0.01, monitors=None, verbose = 0, timeit = False): 
         """
         Perform training on the semi-supervised optimal transport learning model. 
 
@@ -210,11 +211,14 @@ class SemiSupervisedOT():
             monitor: the monitor object for reporting the optimizer's state during iterations.
             eta: the learning rate on the probability update
             verbose: argument for getting updates 
+            time: whether to time the training process or not.
         
         Returns the best version of Y and the assignments of the observations.
         """
         # create a internal representation for every variable that represents the 
         # the current state of the model
+        if timeit: 
+            start_time = time.time()
         self._mock_prob = mock_prob
         self._lam = init_lam
         self._epsilon = epsilon
@@ -262,6 +266,10 @@ class SemiSupervisedOT():
         # reached convergence... 
         if verbose > 0: 
             print("FINAL: Gradient norm = {} at iteration {}".format(grad_norm, self._iter))
+        if timeit:
+            end_time = time.time()
+            predictions, assignments = self.select_best(self._Y, mock_prob)
+            return predictions, assignments, end_time - start_time
         return self.select_best(self._Y, mock_prob)
         
     def select_best(self, Y, mock_prob, verbose = 0): 
