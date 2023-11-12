@@ -12,3 +12,6 @@ var-reduction/outputs
 
 # Ignore the archived folder 
 var-reduction/archived
+
+# Ignore the paper-drafts folder 
+var-reduction/paper-drafts
