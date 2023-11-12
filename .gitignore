@@ -5,10 +5,10 @@
 **__pycache__
 
 # Ignore the data folder
-kai/data
+var-reduction/data
 
 # Ignore the outputs folder 
-kai/outputs
+var-reduction/outputs
 
 # Ignore the archived folder 
-kai/archived
+var-reduction/archived
