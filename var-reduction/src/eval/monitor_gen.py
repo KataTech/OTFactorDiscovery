@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import seaborn as sns
 import scipy.stats as stats
-from ..model.monitor import Monitor
+from .monitor import Monitor
 
 class Monitor_Gen():
     """

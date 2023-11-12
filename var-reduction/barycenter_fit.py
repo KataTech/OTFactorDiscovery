@@ -5,7 +5,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from datetime import datetime
 
 import src.model.ssl_ot as sot 
-from src.model.monitor import Monitors
+from src.eval.monitor import Monitors
 from src.eval.monitor_gen import Barycenter_Fit_Gen, Gaussian_Vis_Gen
 from src.eval import vis
 from constants import hyperparams as hp
