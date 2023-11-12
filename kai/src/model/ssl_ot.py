@@ -187,11 +187,11 @@ class SemiSupervisedOT():
                 # update the probability weight by comparing to other classes
                 self.P_truth[i, k] = self.estimate_p_ik(i, k, w_kern_y, old_P) / total_weight
                 self.P_mock[i, k] += eta * (self.P_truth[i, k] - self.P_mock[i, k])
-            # normalize every row of self.P_mock
-            assert self.P_mock[i, :] == self.P_mock[i, :] / np.sum(self.P_mock[i, :]), "ERROR: The mock probability matrix is not inherently normalized."
+           
 
     def train(self, Y_init, lr = 0.001, epsilon = 0.001, max_iter = 1000, growing_lambda=True, init_lam=0.0, 
-              warm_stop = 50, max_lam = 150, mock_prob=False, eta=0.01, monitors=None, verbose = 0, timeit = False): 
+              warm_stop = 50, max_lam = 150, mock_prob=False, eta=0.01, monitors=None, delayed_prob_update=True, 
+              verbose = 0, timeit = False): 
         """
         Perform training on the semi-supervised optimal transport learning model. 
 
@@ -209,6 +209,7 @@ class SemiSupervisedOT():
             mock_prob: whether to employ the slow-start probability update or not.
             eta: the learning rate of the probability update if slow_update is enabled. 
             monitor: the monitor object for reporting the optimizer's state during iterations.
+            delayed_prob_update: whether to start performing the probability updates after warm_stop.
             eta: the learning rate on the probability update
             verbose: argument for getting updates 
             time: whether to time the training process or not.
@@ -243,17 +244,32 @@ class SemiSupervisedOT():
             grad_norm = np.linalg.norm(self._grad)
             # perform gradient descent step
             self._Y = self._Y - self._grad * lr
-            # TODO: implement functionalities for using monitors
+            # perform monitoring if monitors are supplied 
             if monitors is not None: 
                 monitors.eval(self, self.get_params())
             # update the state in preparation for the next stage of gradient descent 
              # update the iteration counter
             self._iter += 1
-            # perform a probability update 
-            self.probability_update(self._Y, mock_prob, eta, verbose)
+            # perform a probability update if conditions are sufficient
+            if delayed_prob_update and self._iter >= warm_stop: 
+                self.probability_update(self._Y, mock_prob, eta, verbose)
+            elif not delayed_prob_update:
+                self.probability_update(self._Y, mock_prob, eta, verbose)
             # check for early convergence to local minimum
             if grad_norm < self._epsilon: 
-                if growing_lambda and self._iter > warm_stop: 
+                # if we have growing lambda, then we need to wait until 
+                # the lambda finish growing before we can stop
+                if growing_lambda and self._iter > warm_stop:
+                    # if furthermore we have probability updates, 
+                    # we need to allocate sometime for the probability update 
+                    # to run before stopping 
+                    if delayed_prob_update and self._iter > 1.5 * warm_stop: 
+                        break
+                    elif not delayed_prob_update: 
+                        break
+                # if everything is performed with a fix lambda, we 
+                # can stop early without worrying about any delayed effects 
+                elif not growing_lambda: 
                     break
             # update lambda if necessary
             if growing_lambda and self._iter < warm_stop: 
@@ -270,7 +286,7 @@ class SemiSupervisedOT():
             end_time = time.time()
             predictions, assignments = self.select_best(self._Y, mock_prob)
             return predictions, assignments, end_time - start_time
-        return self.select_best(self._Y, mock_prob)
+        return self.select_best(self._Y, mock_prob, verbose)
         
     def select_best(self, Y, mock_prob, verbose = 0): 
         """
@@ -293,8 +309,8 @@ class SemiSupervisedOT():
         P = self.P_mock if mock_prob else self.P_truth
         for i in range(self.N): 
             assignments[i] = int(np.argmax(P[i]))
-            if verbose > 0: 
-                print(f"Selecting class {assignments[i]} for observation {i}")
+            if verbose > 1 and self.labels[i] == -1: 
+                print(f"Selecting class {assignments[i]} for observation {i} with probability {P[i, assignments[i]]}")
             predictions[i, :] = Y[self.get_index(i, assignments[i]), :]            
         return predictions, assignments
     
@@ -315,8 +331,6 @@ class SemiSupervisedOT():
         params["sigma_y"] = self.kern_y_params[0]
         params["sigma_z"] = self.kern_z_params[0]
         return params
-
-
 
     @staticmethod            
     def mask(labels: np.ndarray, percentage: float, seed = None): 

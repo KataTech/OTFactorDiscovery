@@ -25,7 +25,9 @@ labels = np.concatenate((np.zeros(num_samples), np.ones(num_samples))).reshape((
 z_map = np.array([[0, 1], [1, 0]])
 
 # initialize the set of max-lambda values to try 
-max_lam_list = [0, 10, 25, 50, 75, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
+max_lam_list = [200]
+# max_lam_list = [0, 10, 25, 50, 75, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
+print("Lambda List: ", max_lam_list)
 init_lambda = 0
 result_y = []
 kl_divergence = []
