@@ -1,6 +1,6 @@
-DATA_PATH = "/Users/kaihung/optimalEnsemble/OTFactorDiscovery/kai/data"
-OUTPUT_PATH = "/Users/kaihung/optimalEnsemble/OTFactorDiscovery/kai/outputs"
-AMR_UTI_PATH = "/Users/kaihung/optimalEnsemble/OTFactorDiscovery/kai/data/amr-uti-antimicrobial-resistance-in-urinary-tract-infections-1.0.0"
+DATA_PATH = "/Users/kaihung/optimalEnsemble/OTFactorDiscovery/var-reduction/data"
+OUTPUT_PATH = "/Users/kaihung/optimalEnsemble/OTFactorDiscovery/var-reduction/outputs"
+AMR_UTI_PATH = "/Users/kaihung/optimalEnsemble/OTFactorDiscovery/var-reduction/data/amr-uti-antimicrobial-resistance-in-urinary-tract-infections-1.0.0"
 
 hyperparams = {
     "seed": 125, 
